@@ -17,6 +17,9 @@ BurstDetection/patient_data/
 # Outputs (generated, can be reproduced)
 BurstDetection/outputs/
 
+# Outputs (generated, can be reproduced) RS bursts
+BurstDetection/outputs_RS_burst/
+
 # Old archived code
 BurstDetection/old/
 
