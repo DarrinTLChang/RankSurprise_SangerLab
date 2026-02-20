@@ -1,0 +1,375 @@
+# utils.py
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import re
+import numpy as np
+import pandas as pd
+from config import *
+from .detection import *
+from collections import defaultdict
+
+
+def display_region_name(region: str) -> str:
+    """Map a raw region code to a presentation label (slashes, casing, etc.)."""
+    return REGION_DISPLAY.get(region, region)
+
+
+def dataset_labels(mat_path: str) -> tuple[str, str]:
+    p = Path(mat_path)
+    patient = p.parent.name or "unknown"
+    m = re.search(r"_p(\d+)", p.stem)
+    period = f"Period {m.group(1)}" if m else "Period ?"
+    return patient, period
+
+
+def compute_recording_duration_s(spike_struct) -> float:
+    ch0 = np.ravel(spike_struct)[0]
+    return float(ch0.dataSegmentLength)
+
+
+def parse_electrode(elec: str) -> dict:
+    base = str(elec).replace("_CommonFiltered", "")
+    parts = base.split("_")
+
+    head_raw = parts[0] if parts else base
+    head = head_raw[5:] if head_raw.lower().startswith("micro") else head_raw
+
+    side = parts[1] if len(parts) > 1 and parts[1] in ("L", "R") else ""
+    idx = parts[2] if len(parts) > 2 and parts[2].isdigit() else (parts[2] if len(parts) > 2 else "")
+
+    region = re.sub(r"\d+$", "", head)
+
+    return {"base": base, "head": head, "side": side, "idx": idx, "region": region}
+
+
+def infer_region(elec: str) -> str:
+    return parse_electrode(elec)["region"]
+
+
+def pretty_channel_label(elec: str, drop_side: bool) -> str:
+    p = parse_electrode(elec)
+    head, side, idx = p["head"], p["side"], p["idx"]
+
+    if idx:
+        if drop_side or not side:
+            return f"{head}_{idx}"
+        return f"{head}_{side}_{idx}"
+
+    return p["base"]
+
+
+def color_for_nonburst(elec: str) -> str:
+    region = infer_region(elec)
+    for key, col in REGION_COLORS.items():
+        if region.startswith(key):
+            return col
+    return "rgb(30,30,200)"
+
+
+def iter_units_from_stats(spike_struct, STATS):
+    """Yields (elec, cl, spikes_ms_sorted) for each unit in STATS.index."""
+    ch_by_elec = {str(ch.electrode): ch for ch in np.ravel(spike_struct)}
+
+    for (elec, cl) in STATS.index:
+        elec = str(elec)
+        cl = int(cl)
+
+        ch = ch_by_elec.get(elec)
+        if ch is None:
+            continue
+
+        try:
+            arr = ch.time[cl]
+        except Exception:
+            arr = np.ravel(ch.time)[cl]
+
+        if np.isscalar(arr):
+            continue
+
+        spk = np.asarray(arr).ravel().astype(float)
+        spk = spk[np.isfinite(spk)]
+        if spk.size < 2:
+            continue
+
+        yield elec, cl, np.sort(spk)
+
+
+def split_spike_struct_by_side(spike_struct):
+    left = []
+    right = []
+
+    for ch in np.ravel(spike_struct):
+        elec = str(ch.electrode)
+        if "_L_" in elec:
+            left.append(ch)
+        elif "_R_" in elec:
+            right.append(ch)
+
+    return np.array(left, dtype=object), np.array(right, dtype=object)
+
+
+def build_spike_labels_df(spike_struct, STATS, allowed_clusters, ibi_merge_factor):
+    rows = []
+
+    for ch in np.ravel(spike_struct):
+        elec = str(ch.electrode)
+
+        for cl, arr in enumerate(np.ravel(ch.time)):
+            if (elec, cl) not in allowed_clusters:
+                continue
+
+            spk = np.asarray(arr).flatten().astype(float)
+            if spk.size == 0:
+                continue
+            spk = np.sort(spk)
+
+            bursts = detect_bursts(spk, elec, cl, STATS, ibi_merge_factor=ibi_merge_factor)
+
+            burst_id = np.full(spk.shape, -1, dtype=int)
+
+            bursts_sorted = sorted(bursts, key=lambda b: float(b["Start_ms"]))
+            j = 0
+            for b_idx, b in enumerate(bursts_sorted):
+                s = float(b["Start_ms"]); e = float(b["End_ms"])
+                while j < spk.size and spk[j] < s:
+                    j += 1
+                k = j
+                while k < spk.size and spk[k] <= e:
+                    burst_id[k] = b_idx
+                    k += 1
+                j = k
+
+            is_burst = burst_id >= 0
+
+            for t, ib, bid in zip(spk, is_burst, burst_id):
+                rows.append(
+                    dict(
+                        Electrode=elec,
+                        Cluster=int(cl),
+                        Spike_ms=float(t),
+                        IsBurst=bool(ib),
+                        BurstIndex=int(bid),
+                    )
+                )
+
+    return pd.DataFrame(rows)
+
+
+def pool_spike_struct_per_channel(spike_struct, record_len_s):
+    class PooledCh:
+        pass
+
+    pooled_struct = []
+
+    for ch in np.ravel(spike_struct):
+        elec = str(ch.electrode)
+        snr_arr = np.asarray(getattr(ch, "snr", [])).flatten()
+
+        pooled = []
+        for cl, arr in enumerate(np.ravel(ch.time)):
+            spk = np.asarray(arr).flatten().astype(float)
+            if spk.size < 2:
+                continue
+            fr_hz = float(spk.size / record_len_s) if record_len_s > 0 else float("nan")
+            if fr_hz < FR_MIN_HZ:
+                continue
+            snr_val = float(snr_arr[cl]) if cl < snr_arr.size else float("nan")
+            if np.isnan(snr_val) or snr_val < SNR_MIN:
+                continue
+            pooled.append(spk)
+
+        if not pooled:
+            continue
+
+        pooled_spk = np.sort(np.concatenate(pooled))
+        if pooled_spk.size < 2:
+            continue
+
+        pc = PooledCh()
+        pc.electrode = elec
+        pc.time = np.empty((1,), dtype=object)
+        pc.time[0] = pooled_spk
+        pc.snr = np.array([np.nan], dtype=float)
+
+        pooled_struct.append(pc)
+
+    return np.array(pooled_struct, dtype=object)
+
+
+def standardize_output_df(
+    df: pd.DataFrame, *,
+    pretty_col: str = "Channel",
+    drop_side: bool = False,
+    replace_electrode: bool = True,
+    put_pretty_first: bool = False,
+) -> pd.DataFrame:
+    if df is None or df.empty or "Electrode" not in df.columns:
+        return df
+
+    df = df.copy()
+    df[pretty_col] = df["Electrode"].apply(lambda e: pretty_channel_label(str(e), drop_side=drop_side))
+
+    if replace_electrode:
+        df["Electrode"] = df[pretty_col]
+        df.drop(columns=[pretty_col], inplace=True)
+        return df
+
+    if put_pretty_first:
+        cols = [pretty_col] + [c for c in df.columns if c != pretty_col]
+        df = df[cols]
+
+    return df
+
+
+def get_thresholding_method_name() -> tuple[str, int]:
+    if maxisi_toggle:
+        return "maxISI", 1
+    if alpha_meanisi_toggle:
+        return "alpha_meanISI", 2
+    if rankSurprise_toggle:
+        return "rankSurprise", 3
+    return "unknown method", 0
+
+
+def build_run_params(method_name: str, base_thr: float) -> dict:
+    """Build a dict of all run parameters for the active method.
+
+    Used to generate directory names, figure titles, and saved JSON.
+    """
+    common = {
+        "method": method_name,
+        "SNR_MIN": SNR_MIN,
+        "FR_MIN_HZ": FR_MIN_HZ,
+        "MIN_SPIKES_IN_BURST": MIN_SPIKES_IN_BURST,
+        "pooling": pooling_toggle,
+    }
+
+    if method_name == "maxISI":
+        common.update({
+            "base_thr": base_thr,
+            "ibi_merge_factor": ibi_merge_factor,
+            "MIN_BURST_DURATION": MIN_BURST_DURATION,
+        })
+    elif method_name == "alpha_meanISI":
+        common.update({
+            "alpha": ALPHA_MAXISI,
+            "min_thr_ms": MIN_MAXISI_MS,
+            "max_thr_ms": MAX_MAXISI_MS,
+            "ibi_merge_factor": ibi_merge_factor,
+            "MIN_BURST_DURATION": MIN_BURST_DURATION,
+        })
+    elif method_name == "rankSurprise":
+        common.update({
+            "RS_alpha_cluster": RS_alpha_percentage_stage1,
+            "RS_limit_cluster": RS_Percentile_Limit_stage1,
+            "RS_alpha_region": RS_alpha_percentage_region,
+            "RS_limit_region": RS_Percentile_Limit_region,
+            "RS_alpha_network": RS_alpha_percentage_network,
+            "RS_limit_network": RS_Percentile_Limit_network,
+            "region_burst": RS_region_burst_toggle,
+            "network_burst": RS_NETWORK_ONSETS_TOGGLE,
+        })
+
+    return common
+
+
+def run_tag_from_params(params: dict) -> str:
+    """Short, filesystem-safe directory name derived from run parameters."""
+    m = params["method"]
+    parts = [f"snr{params['SNR_MIN']}", f"FR{params['FR_MIN_HZ']}"]
+
+    if m == "maxISI":
+        parts += [
+            f"thr{params['base_thr']}",
+            f"ibi{params['ibi_merge_factor']}",
+            f"spk{params['MIN_SPIKES_IN_BURST']}",
+            f"dur{params['MIN_BURST_DURATION']}",
+        ]
+        if params["pooling"]:
+            parts.append("pooled")
+    elif m == "alpha_meanISI":
+        parts += [
+            f"a{params['alpha']}",
+            f"rng{params['min_thr_ms']}-{params['max_thr_ms']}",
+            f"ibi{params['ibi_merge_factor']}",
+            f"spk{params['MIN_SPIKES_IN_BURST']}",
+            f"dur{params['MIN_BURST_DURATION']}",
+        ]
+        if params["pooling"]:
+            parts.append("pooled")
+    elif m == "rankSurprise":
+        parts += [
+            f"ac{params['RS_alpha_cluster']}",
+            f"lc{params['RS_limit_cluster']}",
+            f"ar{params['RS_alpha_region']}",
+            f"lr{params['RS_limit_region']}",
+            f"an{params['RS_alpha_network']}",
+            f"ln{params['RS_limit_network']}",
+            f"spk{params['MIN_SPIKES_IN_BURST']}",
+        ]
+        if params["pooling"]:
+            parts.append("pooled")
+        if params["region_burst"]:
+            parts.append("reg")
+        if params["network_burst"]:
+            parts.append("net")
+
+    return "_".join(str(p) for p in parts)
+
+
+def figure_title_from_params(params: dict, patient: str, period: str) -> str:
+    """Human-readable figure title from run parameters."""
+    m = params["method"]
+    header = f"{patient} \u2022 {period} \u2014 {m}"
+
+    if m == "maxISI":
+        detail = (
+            f"SNR\u2265{params['SNR_MIN']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
+            f"thr={params['base_thr']}  IBI\u00d7{params['ibi_merge_factor']}  "
+            f"spikes\u2265{params['MIN_SPIKES_IN_BURST']}  dur\u2265{params['MIN_BURST_DURATION']}ms"
+        )
+    elif m == "alpha_meanISI":
+        detail = (
+            f"SNR\u2265{params['SNR_MIN']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
+            f"\u03b1={params['alpha']}  thr=[{params['min_thr_ms']},{params['max_thr_ms']}]ms  "
+            f"IBI\u00d7{params['ibi_merge_factor']}  "
+            f"spikes\u2265{params['MIN_SPIKES_IN_BURST']}  dur\u2265{params['MIN_BURST_DURATION']}ms"
+        )
+    elif m == "rankSurprise":
+        detail = (
+            f"SNR\u2265{params['SNR_MIN']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
+            f"\u03b1c={params['RS_alpha_cluster']:.0%}  "
+            f"\u03b1r={params['RS_alpha_region']:.0%}  "
+            f"\u03b1n={params['RS_alpha_network']:.0%}  "
+            f"spikes\u2265{params['MIN_SPIKES_IN_BURST']}  "
+            f"region={'on' if params['region_burst'] else 'off'}  "
+            f"network={'on' if params['network_burst'] else 'off'}"
+        )
+    else:
+        detail = ""
+
+    if params.get("pooling"):
+        detail += "  [POOLED]"
+
+    return f"{header}:  {detail}" if detail else header
+
+
+def save_run_params(params: dict, run_dir: Path) -> None:
+    """Write run parameters as a JSON file inside the run directory."""
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with open(run_dir / "params.json", "w") as f:
+        json.dump(params, f, indent=2, default=str)
+
+
+def filter_bursts_by_spike_struct(all_bursts, spike_struct):
+    allowed_elecs = {str(ch.electrode) for ch in np.ravel(spike_struct)}
+    return [b for b in all_bursts if b["Electrode"] in allowed_elecs]
+
+
+def burst_in_window(t_ms: float, window: list) -> bool:
+    for t0, t1 in window:
+        if t0 <= t_ms <= t1:
+            return True
+    return False

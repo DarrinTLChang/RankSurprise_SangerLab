@@ -1,0 +1,29 @@
+# Only track BurstDetection/ — ignore everything else at root
+/*
+!BurstDetection/
+!.gitignore
+!requirements.txt
+!README.md
+
+# Inside BurstDetection/
+__pycache__/
+*.pyc
+*.pyo
+
+# Patient data (large .mat files)
+BurstDetection/patient_data/
+
+# Patient data (large .mat files)
+BurstDetection/Matlab/
+
+# Outputs (generated, can be reproduced)
+BurstDetection/outputs/
+
+# Old archived code
+BurstDetection/old/
+
+# Matlab scripts
+BurstDetection/Matlab/
+
+# OS junk
+.DS_Store
