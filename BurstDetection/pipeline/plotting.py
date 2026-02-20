@@ -298,9 +298,20 @@ def _compute_network_bars(network_windows, all_bursts):
         return []
     bars = bars_from_onset_windows_using_all_bursts(
         network_windows, all_bursts,
-        time_unit="ms", min_unique_channels=5, channel_mode="elec_cluster",
+        time_unit="ms", min_unique_channels=1, channel_mode="elec_cluster",
     )
     return _merge_windows_s(bars)
+
+
+def _fr_y_range(fr_df: pd.DataFrame):
+    """Return (y0, y1) for FR panel data range."""
+    if fr_df is None or len(fr_df) == 0 or "FR_Hz" not in fr_df.columns:
+        return 0.0, 1.0
+    vals = pd.to_numeric(fr_df["FR_Hz"], errors="coerce").dropna()
+    if len(vals) == 0:
+        return 0.0, 1.0
+    y_max = float(vals.max())
+    return 0.0, y_max * 1.02 if y_max > 0 else 1.0
 
 
 def _emg_y_range(traces):
@@ -338,8 +349,12 @@ def make_sangerlab_presentation_figure(
     emg_downsample: int = 100,
     network_windows_L=None,
     network_windows_R=None,
+    network_bars_L=None,
+    network_bars_R=None,
     region_windows_by_region_L=None,
     region_windows_by_region_R=None,
+    region_bars_by_region_L=None,
+    region_bars_by_region_R=None,
     disable_bursts: bool = False,
     fr_df_L: pd.DataFrame | None = None,
     fr_df_R: pd.DataFrame | None = None,
@@ -361,9 +376,9 @@ def make_sangerlab_presentation_figure(
     if show_emg and show_fr:
         n_rows, row_heights = 6, [0.35, 0.35, 0.24, 0.24, 0.2, 0.2]
     elif show_emg:
-        n_rows, row_heights = 4, [0.28, 0.28, 0.22, 0.22]
+        n_rows, row_heights = 4, [0.26, 0.26, 0.24, 0.24]
     elif show_fr:
-        n_rows, row_heights = 4, [0.36, 0.36, 0.14, 0.14]
+        n_rows, row_heights = 4, [0.26, 0.26, 0.24, 0.24]
     else:
         n_rows, row_heights = 2, [0.50, 0.50]
 
@@ -378,11 +393,13 @@ def make_sangerlab_presentation_figure(
     sides = [
         {"tag": "L", "row": 1, "label": "Left",
          "struct": spike_struct_L, "bursts": all_bursts_L,
-         "net_wins": network_windows_L, "reg_wins": region_windows_by_region_L,
+         "net_wins": network_windows_L, "net_bars": network_bars_L if network_bars_L is not None else [],
+         "reg_wins": region_windows_by_region_L, "reg_bars": region_bars_by_region_L if region_bars_by_region_L is not None else {},
          "fr_df": fr_df_L, "emg_traces": emg_traces_L},
         {"tag": "R", "row": 2, "label": "Right",
          "struct": spike_struct_R, "bursts": all_bursts_R,
-         "net_wins": network_windows_R, "reg_wins": region_windows_by_region_R,
+         "net_wins": network_windows_R, "net_bars": network_bars_R if network_bars_R is not None else [],
+         "reg_wins": region_windows_by_region_R, "reg_bars": region_bars_by_region_R if region_bars_by_region_R is not None else {},
          "fr_df": fr_df_R, "emg_traces": emg_traces_R},
     ]
 
@@ -451,6 +468,11 @@ def make_sangerlab_presentation_figure(
         fig.update_xaxes(showticklabels=False, row=side["row"], col=1)
         region_orders[side["tag"]] = region_first_seen
 
+    # ---- network bars (for FR and EMG overlays) ----
+    # Use pre-computed bars from detection (already filtered and merged)
+    net_bars_L = network_bars_L if network_bars_L is not None else []
+    net_bars_R = network_bars_R if network_bars_R is not None else []
+
     # ---- firing-rate panels ----
     if show_fr:
         for i, side in enumerate(sides):
@@ -460,9 +482,21 @@ def make_sangerlab_presentation_figure(
                 row=fr_row, col=1,
                 bin_s=bin_s, stride_s=stride_s,
                 connect=True, smooth_sec=SMOOTH_PANEL_SEC,
+                line_color=SIDE_COLORS[side["tag"]]["burst"],
             )
-            fig.update_yaxes(title_text="FR (Hz)", row=fr_row, col=1)
+            fig.update_yaxes(title_text=f"FR ({side['tag']})", row=fr_row, col=1)
             fig.update_xaxes(showticklabels=False, row=fr_row, col=1)
+
+            # Network burst overlay on FR panel: both L and R bars on each panel
+            y0, y1 = _fr_y_range(side["fr_df"])
+            for bars, color_key in [(net_bars_L, "L"), (net_bars_R, "R")]:
+                if bars:
+                    add_emg_shaders_from_windows(
+                        fig, bars, row=fr_row, col=1,
+                        y0=y0, y1=y1,
+                        color=SIDE_COLORS[color_key]["emg_shader"],
+                        opacity=1, layer="below", time_unit="s",
+                    )
 
     # ---- network & region burst bars on raster ----
     y_top = -5 * RASTER_ROW_SPACING
@@ -472,32 +506,30 @@ def make_sangerlab_presentation_figure(
         colors = SIDE_COLORS[side["tag"]]
 
         if side["net_wins"] and plot_network_bar:
-            net_bars = _compute_network_bars(side["net_wins"], side["bursts"])
-            add_burst_bars_top_SIMPLE(
-                fig, net_bars, row=side["row"], col=1,
-                y_top=y_top, bar_height=bar_height,
-                color=colors["network"], opacity=0.9, line_width=1,
-            )
+            # Use pre-computed bars from detection
+            net_bars = side["net_bars"]
+            if net_bars:
+                add_burst_bars_top_SIMPLE(
+                    fig, net_bars, row=side["row"], col=1,
+                    y_top=y_top, bar_height=bar_height,
+                    color=colors["network"], opacity=0.9, line_width=1,
+                )
 
         if side["reg_wins"] and plot_region_bar:
-            plot_region_bars_simple(
+            # Use pre-computed bars from detection
+            plot_region_bars_from_precomputed(
                 fig, row=side["row"], col=1,
-                region_windows_by_region=side["reg_wins"],
-                all_bursts=side["bursts"],
+                region_bars_by_region=side["reg_bars"],
                 region_colors=REGION_COLORS,
                 region_order=list(reversed(region_orders[side["tag"]])),
                 y_top_start=(y_top - 2.5 * bar_height),
                 bar_height=bar_height / 2,
                 y_step=1.2 * bar_height,
-                min_unique_channels=1, channel_mode="elec_cluster",
                 opacity=0.9, line_width=1.0,
             )
 
     # ---- EMG panels with network-burst shaders ----
     if show_emg:
-        net_bars_L = _compute_network_bars(network_windows_L, all_bursts_L)
-        net_bars_R = _compute_network_bars(network_windows_R, all_bursts_R)
-
         for i, side in enumerate(sides):
             emg_row = (5 if show_fr else 3) + i
 
@@ -583,7 +615,7 @@ def bars_from_onset_windows_using_all_bursts(
             e = float(b.get("End_ms", np.nan))
             if not (np.isfinite(s) and np.isfinite(e)) or e <= s:
                 continue
-            if (e >= w0) and (s <= w1):
+            if (s >= w0) and (s <= w1):
                 overlapping.append((s, e))
                 chans.add(ch_id(b))
 
@@ -592,8 +624,12 @@ def bars_from_onset_windows_using_all_bursts(
         if len(chans) < int(min_unique_channels):
             continue
 
-        b0 = min(s for s, _ in overlapping) - pad_ms
-        b1 = max(e for _, e in overlapping) + pad_ms
+        starts = [s for s, _ in overlapping]
+        ends = [e for _, e in overlapping]
+        b0 = float(np.median(starts)) - pad_ms
+        b1 = float(np.median(ends)) + pad_ms
+        # b0 = float(np.mean(starts)) - pad_ms
+        # b1 = float(np.mean(ends)) + pad_ms
         if b1 <= b0:
             continue
 
@@ -628,6 +664,36 @@ def add_burst_bars_top_SIMPLE(
             layer=layer,
             row=row, col=col,
         )
+
+
+def plot_region_bars_from_precomputed(
+    fig, *, row: int, col: int,
+    region_bars_by_region: dict[str, list[tuple[float, float]]],
+    region_colors: dict,
+    region_order: list[str],
+    y_top_start: float,
+    bar_height: float,
+    y_step: float,
+    opacity: float = 0.9,
+    line_width: float = 1.0,
+):
+    """Plot region bars using pre-computed bars from detection."""
+    y_top = float(y_top_start)
+
+    for reg in region_order:
+        bars_s = region_bars_by_region.get(reg, [])
+        if not bars_s:
+            continue
+
+        add_burst_bars_top_SIMPLE(
+            fig, bars_s,
+            row=row, col=col,
+            y_top=y_top, bar_height=bar_height,
+            color=region_colors.get(reg, "blue"),
+            opacity=opacity, line_width=line_width,
+        )
+
+        y_top -= float(y_step)
 
 
 def plot_region_bars_simple(
@@ -785,6 +851,7 @@ def add_firing_rate_panel(
     bin_s: float, stride_s: float,
     connect: bool = True, smooth_sec: float = 0.0,
     name: str = "Population firing rate",
+    line_color: str | None = None,
 ):
     if fr_df is None or len(fr_df) == 0:
         return
@@ -801,9 +868,14 @@ def add_firing_rate_panel(
         smooth_bins = max(1, int(round(float(smooth_sec) / float(stride_s))))
         y = _moving_average(y, smooth_bins)
 
+    line_kw = dict(width=1)
+    if line_color is not None:
+        line_kw["color"] = line_color
+
     fig.add_trace(go.Scattergl(
         x=x, y=y,
         mode="lines+markers" if connect else "markers",
+        line=line_kw,
         marker=dict(size=COACTIVITY_DOT_SIZE),
         hovertemplate="t=%{x:.3f}s<br>FR=%{y:.2f} Hz<extra></extra>",
         showlegend=False,

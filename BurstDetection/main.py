@@ -89,8 +89,12 @@ def run_single_dataset(
     all_bursts_R = bd.all_bursts_R
     network_windows_L = bd.network_windows_L
     network_windows_R = bd.network_windows_R
+    network_bars_L = bd.network_bars_L
+    network_bars_R = bd.network_bars_R
     region_windows_L = bd.region_windows_L
     region_windows_R = bd.region_windows_R
+    region_bars_by_region_L = bd.region_bars_by_region_L
+    region_bars_by_region_R = bd.region_bars_by_region_R
 
     # --------------------------------------------------
     # EMG
@@ -102,14 +106,15 @@ def run_single_dataset(
     event_times = None
     event_names = None
 
-    if PLOT_EMG:
+    if PLOT_EMG and EMG_MAT is not None:
         IDX_R = [0, 1, 2, 3]
         IDX_L = [4, 5, 6, 7]
         IDX_LR = IDX_R + IDX_L
 
         emg_fs, emg_data, emg_segment_length = load_emg_raw(EMG_MAT)
         emg_processed, selected_channel_names = preprocess_emg_exact(emg_data, fs_for_filter=fs)
-        event_times, event_names = parse_notes_events(NOTES_TXT)
+        if NOTES_TXT is not None:
+            event_times, event_names = parse_notes_events(NOTES_TXT)
         t_emg = make_emg_timebase(emg_segment_length, emg_processed.shape[1])
 
         mask = t_emg <= record_len_s
@@ -178,8 +183,12 @@ def run_single_dataset(
         emg_downsample=100,
         network_windows_L=network_windows_L,
         network_windows_R=network_windows_R,
+        network_bars_L=network_bars_L,
+        network_bars_R=network_bars_R,
         region_windows_by_region_L=region_windows_L,
         region_windows_by_region_R=region_windows_R,
+        region_bars_by_region_L=region_bars_by_region_L,
+        region_bars_by_region_R=region_bars_by_region_R,
         disable_bursts=disable_bursts,
         fr_df_L=fr_df_L,
         fr_df_R=fr_df_R,
@@ -221,9 +230,17 @@ if __name__ == "__main__":
         EMG_MAT = None
         NOTES_TXT = None
         if PLOT_EMG:
-            EMG_MAT, NOTES_TXT = derive_emg_notes_from_spiketime(mat_file)
-            print("EMG   :", EMG_MAT)
-            print("Notes :", NOTES_TXT)
+            emg_candidate, notes_candidate = derive_emg_notes_from_spiketime(mat_file)
+            if Path(emg_candidate).exists():
+                EMG_MAT = emg_candidate
+                print("EMG   :", EMG_MAT)
+            else:
+                print("EMG   : not found, skipping")
+            if Path(notes_candidate).exists():
+                NOTES_TXT = notes_candidate
+                print("Notes :", NOTES_TXT)
+            else:
+                print("Notes : not found, skipping")
 
         for base_thr in maxISI_thresholds:
             for bin_s in coactivity_bins_s:

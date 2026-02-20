@@ -5,22 +5,24 @@ import numpy as np
 # DATASETS
 # ============================================================
 SpikeTime_Mat_File = [
-    # "patient_data/s522/spikeTime_p2.mat",
-    # "patient_data/s522/spikeTime_p3.mat",
-    # "patient_data/s522/spikeTime_p6.mat",
-    # "patient_data/s522/spikeTime_p7.mat",
-    # "patient_data/s522/spikeTime_p13.mat",
-    # "patient_data/s522/spikeTime_p16.mat",
-    # "patient_data/s522/spikeTime_p17.mat",
-    # "patient_data/s522/spikeTime_p5.mat",
+    # "patient_data/s432/spikeTime_p7.mat", 
 
-    # "patient_data/s527/spikeTime_p1.mat",
-    # "patient_data/s527/spikeTime_p2.mat",
-    # "patient_data/s527/spikeTime_p3.mat",
+    "patient_data/s522/spikeTime_p2.mat",
+    "patient_data/s522/spikeTime_p3.mat",
+    "patient_data/s522/spikeTime_p6.mat",
+    "patient_data/s522/spikeTime_p7.mat",
+    "patient_data/s522/spikeTime_p13.mat",
+    "patient_data/s522/spikeTime_p16.mat",
+    "patient_data/s522/spikeTime_p17.mat",
+    "patient_data/s522/spikeTime_p5.mat", 
 
-    # "patient_data/s530/spikeTime_p1.mat",
+    "patient_data/s527/spikeTime_p1.mat",
+    "patient_data/s527/spikeTime_p2.mat",
+    "patient_data/s527/spikeTime_p3.mat",
+
+    "patient_data/s530/spikeTime_p1.mat",
     "patient_data/s530/spikeTime_p2.mat",
-    # "patient_data/s530/spikeTime_p3.mat",
+    "patient_data/s530/spikeTime_p3.mat",
 ]
 
 # ============================================================
@@ -79,6 +81,10 @@ RS_Limit_network = None
 RS_Percentile_Limit_network = 75
 RS_alpha_percentage_network = 0.01
 RS_alpha_network = -np.log(RS_alpha_percentage_network)
+
+# Channel filtering for region/network bursts
+MIN_UNIQUE_CHANNELS_REGION = 1
+MIN_UNIQUE_CHANNELS_NETWORK = 1
 
 # ============================================================
 # ALPHA MEAN-ISI PARAMETERS
