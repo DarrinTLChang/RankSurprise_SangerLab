@@ -13,8 +13,6 @@ __pycache__/
 # Patient data (large .mat files)
 BurstDetection/patient_data/
 
-# Patient data (large .mat files)
-BurstDetection/Matlab/
 
 # Outputs (generated, can be reproduced)
 BurstDetection/outputs/

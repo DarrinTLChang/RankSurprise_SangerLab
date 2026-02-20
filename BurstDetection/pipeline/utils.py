@@ -278,45 +278,48 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
 def run_tag_from_params(params: dict) -> str:
     """Short, filesystem-safe directory name derived from run parameters."""
     m = params["method"]
-    parts = [f"snr{params['SNR_MIN']}", f"FR{params['FR_MIN_HZ']}"]
+    parts = [f"SNR={params['SNR_MIN']}", f"FR={params['FR_MIN_HZ']}Hz"]
 
     if m == "maxISI":
         parts += [
-            f"thr{params['base_thr']}",
-            f"ibi{params['ibi_merge_factor']}",
-            f"spk{params['MIN_SPIKES_IN_BURST']}",
-            f"dur{params['MIN_BURST_DURATION']}",
+            f"thr={params['base_thr']}",
+            f"ibi={params['ibi_merge_factor']}",
+            f"minSpk={params['MIN_SPIKES_IN_BURST']}",
+            f"minDur={params['MIN_BURST_DURATION']}ms",
         ]
         if params["pooling"]:
             parts.append("pooled")
     elif m == "alpha_meanISI":
         parts += [
-            f"a{params['alpha']}",
-            f"rng{params['min_thr_ms']}-{params['max_thr_ms']}",
-            f"ibi{params['ibi_merge_factor']}",
-            f"spk{params['MIN_SPIKES_IN_BURST']}",
-            f"dur{params['MIN_BURST_DURATION']}",
+            f"alpha={params['alpha']}",
+            f"range={params['min_thr_ms']}-{params['max_thr_ms']}ms",
+            f"ibi={params['ibi_merge_factor']}",
+            f"minSpk={params['MIN_SPIKES_IN_BURST']}",
+            f"minDur={params['MIN_BURST_DURATION']}ms",
         ]
         if params["pooling"]:
             parts.append("pooled")
     elif m == "rankSurprise":
+        ac = params['RS_alpha_cluster']
+        ar = params['RS_alpha_region']
+        an = params['RS_alpha_network']
         parts += [
-            f"ac{params['RS_alpha_cluster']}",
-            f"lc{params['RS_limit_cluster']}",
-            f"ar{params['RS_alpha_region']}",
-            f"lr{params['RS_limit_region']}",
-            f"an{params['RS_alpha_network']}",
-            f"ln{params['RS_limit_network']}",
-            f"spk{params['MIN_SPIKES_IN_BURST']}",
+            f"aClust={ac:.0%}",
+            f"limClust={params['RS_limit_cluster']}",
+            f"aReg={ar:.0%}",
+            f"limReg={params['RS_limit_region']}",
+            f"aNet={an:.0%}",
+            f"limNet={params['RS_limit_network']}",
+            f"minSpk={params['MIN_SPIKES_IN_BURST']}",
         ]
         if params["pooling"]:
             parts.append("pooled")
         if params["region_burst"]:
-            parts.append("reg")
+            parts.append("region")
         if params["network_burst"]:
-            parts.append("net")
+            parts.append("network")
 
-    return "_".join(str(p) for p in parts)
+    return "__".join(str(p) for p in parts)
 
 
 def figure_title_from_params(params: dict, patient: str, period: str) -> str:

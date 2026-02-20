@@ -31,18 +31,20 @@ def run_single_dataset(
     fs = float((np.ravel(spike_struct)[0]).dataSegmentLength)
 
     outputs_root = Path("outputs")
+    output_RS_burst_root = Path("outputs_RS_burst")
     period_dir = period.replace(" ", "")
     patient_dir = patient
 
     out_root = outputs_root / patient_dir / period_dir
     meth_dir = out_root / thr_method_name
-
+    
     run_params = build_run_params(thr_method_name, base_thr)
     run_tag = run_tag_from_params(run_params)
     run_dir = meth_dir / run_tag
+    output_RS_burst_dir = output_RS_burst_root / patient_dir / period_dir/ thr_method_name / run_tag
     isi_dir = run_dir / "isi_summary"
     raster_dir = run_dir / "raster_plots"
-    for d in (run_dir, isi_dir, raster_dir):
+    for d in (run_dir, isi_dir, raster_dir, output_RS_burst_dir):
         d.mkdir(parents=True, exist_ok=True)
     save_run_params(run_params, run_dir)
 
@@ -77,7 +79,7 @@ def run_single_dataset(
     # --------------------------------------------------
     bd = rs_burst_detection(
         spike_struct, spike_struct_L, spike_struct_R,
-        STATS, run_dir,
+        STATS, output_RS_burst_dir,
         iter_units_fn=iter_units_from_stats,
         infer_region_fn=infer_region,
         burst_in_window_fn=burst_in_window,
