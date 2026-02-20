@@ -10,8 +10,8 @@ __pycache__/
 *.pyc
 *.pyo
 
-# # Patient data (large .mat files)
-# BurstDetection/patient_data/
+# Patient data (large .mat files)
+BurstDetection/patient_data/
 
 
 # Outputs (generated, can be reproduced)
