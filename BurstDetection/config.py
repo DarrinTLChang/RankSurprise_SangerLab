@@ -5,24 +5,85 @@ import numpy as np
 # DATASETS
 # ============================================================
 SpikeTime_Mat_File = [
-    # "patient_data/s432/spikeTime_p7.mat", 
 
-    "patient_data/s522/spikeTime_p2.mat",
-    "patient_data/s522/spikeTime_p3.mat",
-    "patient_data/s522/spikeTime_p6.mat",
-    "patient_data/s522/spikeTime_p7.mat",
-    "patient_data/s522/spikeTime_p13.mat",
-    "patient_data/s522/spikeTime_p16.mat",
-    "patient_data/s522/spikeTime_p17.mat",
-    "patient_data/s522/spikeTime_p5.mat", 
+    # "patient_data/s432/spikeTime_p2.mat", 
+    # "patient_data/s432/spikeTime_p7.mat",
+    # "patient_data/s432/spikeTime_p9.mat", 
 
-    "patient_data/s527/spikeTime_p1.mat",
-    "patient_data/s527/spikeTime_p2.mat",
-    "patient_data/s527/spikeTime_p3.mat",
+    # "patient_data/s508/spikeTime_p1.mat",
+    # "patient_data/s508/spikeTime_p2.mat", 
+    # "patient_data/s508/spikeTime_p5.mat", 
+    # "patient_data/s508/spikeTime_p6.mat", 
+    # "patient_data/s508/spikeTime_p7.mat", 
+    # "patient_data/s508/spikeTime_p8.mat", 
+    # "patient_data/s508/spikeTime_p9.mat", 
+    # "patient_data/s508/spikeTime_p10.mat", 
 
-    "patient_data/s530/spikeTime_p1.mat",
+    # "patient_data/s509/spikeTime_p2.mat", 
+    # "patient_data/s509/spikeTime_p3.mat", 
+    # "patient_data/s509/spikeTime_p4.mat", 
+    # "patient_data/s509/spikeTime_p5.mat", 
+    # "patient_data/s509/spikeTime_p6.mat", 
+    # "patient_data/s509/spikeTime_p7.mat", 
+    # "patient_data/s509/spikeTime_p8.mat", 
+    # "patient_data/s509/spikeTime_p9.mat",
+
+
+    # "patient_data/s510/spikeTime_p2.mat", 
+    # "patient_data/s510/spikeTime_p3.mat", 
+    # "patient_data/s510/spikeTime_p4.mat", 
+    # "patient_data/s510/spikeTime_p5.mat", 
+    # "patient_data/s510/spikeTime_p10.mat", 
+    # "patient_data/s510/spikeTime_p11.mat", 
+    # "patient_data/s510/spikeTime_p12.mat", 
+    # "patient_data/s510/spikeTime_p13.mat", 
+    # "patient_data/s510/spikeTime_p14.mat", 
+    # "patient_data/s510/spikeTime_p15.mat", 
+  
+    # "patient_data/s511/spikeTime_p1.mat", 
+    # "patient_data/s511/spikeTime_p2.mat", 
+    # "patient_data/s511/spikeTime_p3.mat", 
+    # "patient_data/s511/spikeTime_p4.mat", 
+    # "patient_data/s511/spikeTime_p5.mat", 
+    # "patient_data/s511/spikeTime_p6.mat", 
+ 
+    # "patient_data/s512/spikeTime_p1.mat", 
+    # "patient_data/s512/spikeTime_p2.mat", 
+    # "patient_data/s512/spikeTime_p3.mat", 
+    # "patient_data/s512/spikeTime_p4.mat", 
+    # "patient_data/s512/spikeTime_p9.mat", 
+    # "patient_data/s512/spikeTime_p10.mat", 
+    # "patient_data/s512/spikeTime_p11.mat", 
+    # "patient_data/s512/spikeTime_p12.mat", 
+
+    # "patient_data/s521/spikeTime_p1.mat", 
+    # "patient_data/s521/spikeTime_p2.mat",
+    # "patient_data/s521/spikeTime_p3.mat",
+    # "patient_data/s521/spikeTime_p4.mat",
+    # "patient_data/s521/spikeTime_p10.mat",
+    # "patient_data/s521/spikeTime_p11.mat",
+    # "patient_data/s521/spikeTime_p12.mat",
+    # "patient_data/s521/spikeTime_p13.mat",
+    
+    # "patient_data/s522/spikeTime_p2.mat",
+    # "patient_data/s522/spikeTime_p3.mat",
+    # "patient_data/s522/spikeTime_p6.mat",
+    # "patient_data/s522/spikeTime_p7.mat",
+    # "patient_data/s522/spikeTime_p13.mat",
+    # "patient_data/s522/spikeTime_p16.mat",
+    # "patient_data/s522/spikeTime_p17.mat",
+    # "patient_data/s522/spikeTime_p5.mat",  #very long
+
+    # "patient_data/s523/spikeTime_p1.mat",
+    # "patient_data/s523/spikeTime_p3.mat",
+
+    # "patient_data/s527/spikeTime_p1.mat",
+    # "patient_data/s527/spikeTime_p2.mat",
+    # "patient_data/s527/spikeTime_p3.mat",
+
+    # "patient_data/s530/spikeTime_p1.mat",
     "patient_data/s530/spikeTime_p2.mat",
-    "patient_data/s530/spikeTime_p3.mat",
+    # "patient_data/s530/spikeTime_p3.mat",
 ]
 
 # ============================================================
@@ -46,6 +107,7 @@ rankSurprise_toggle = True
 RS_region_burst_toggle = True
 plot_network_bursts = False
 RS_NETWORK_ONSETS_TOGGLE = True
+RUN_REGION_EXCLUSION_STUDY = True  # Leave-K-out span overlap vs GT (reads existing CSVs)
 
 # ============================================================
 # MAXISI PARAMETERS
@@ -96,7 +158,7 @@ MAX_MAXISI_MS = 100
 # ============================================================
 # CO-ACTIVITY
 # ============================================================
-coactivity_bins_s = [0.6]
+coactivity_bins_s = [0.4]
 OVERLAP_FRACTION = 0.2
 
 # ============================================================
@@ -113,14 +175,13 @@ COMMON_MARGINS = dict(t=70, r=240, l=110, b=60)
 LEGEND_MARKER_SIZE = 10
 
 # ============================================================
-# PLOTTING - CO-ACTIVITY PANELS
+# PLOTTING - CO-ACTIVITY(FR) PANELS
 # ============================================================
 SHOW_SUMMED_COACTIVITY_PANEL = True
 SHOW_REGION_COACTIVITY_PANEL = True
 COACTIVITY_DOT_SIZE = 2
 BURST_CHANNELS_COLOR = "rgb(139,69,19)"
 CONNECT_LINES = True
-SMOOTH_OVERLAY_SEC = 1
 SMOOTH_PANEL_SEC = 1
 REGIONAL_LINE_WIDTH = 1.6
 REGIONAL_OUTLINE_WIDTH = 0
@@ -137,8 +198,14 @@ ISI_BAR_SHOW_STD = False
 # ============================================================
 # REGION COLORS & DISPLAY NAMES
 # ============================================================
+# If True, strip trailing digits from electrode head so GPi1/GPi2 → GPi (one region).
+# If False, keep them separate (GPi1, GPi2 as distinct regions). Toggle as needed.
+COMBINE_NUMBERED_REGIONS: bool = True
+
 REGION_COLORS: dict[str, str] = {
     "GPi": "rgb(60, 110, 230)",
+    "GPi1": "rgb(60, 110, 230)",
+    "GPi2": "rgb(60, 110, 230)",
     "VIMPPN": "rgb(0,160,0)",
     "VoSTNSNr": "rgb(255,140,0)",
     "ANT": "rgb(255,140,0)",
@@ -149,6 +216,8 @@ REGION_COLORS: dict[str, str] = {
 
 REGION_DISPLAY: dict[str, str] = {
     "GPi": "GPi",
+    "GPi1": "GPi 1",
+    "GPi2": "GPi 2",
     "VOSTN": "VO/STN",
     "VoSTNSNr": "VO/STN/SNr",
     "CMCL": "CM/CL",

@@ -31,7 +31,7 @@ def add_raster_row(
     *,
     show_burst_overlay: bool = True,
     burst_color: str = "rgb(220,0,0)",
-):
+    ):
     spk = x_ms
     fig.add_trace(go.Scattergl(
         x=spk / 1000.0,
@@ -216,8 +216,8 @@ def add_region_legend_burst(fig: go.Figure, *, row: int = 1, col: int = 1):
             x=[0], y=[0],
             marker=dict(color="rgb(249, 153, 153)"),
             name="Network Burst (L)",
-            legendgroup="EMG",
-            legendgrouptitle_text="EMG",
+            legendgroup="FR/EMG",
+            legendgrouptitle_text="FR/EMG",
             showlegend=True,
             hoverinfo="skip",
         )
@@ -228,7 +228,7 @@ def add_region_legend_burst(fig: go.Figure, *, row: int = 1, col: int = 1):
             x=[0], y=[0],
             marker=dict(color="rgb(214, 173, 255)"),
             name="Network Burst (R)",
-            legendgroup="EMG",
+            legendgroup="FR/EMG",
             showlegend=True,
             hoverinfo="skip",
         )
@@ -374,13 +374,13 @@ def make_sangerlab_presentation_figure(
 
     # ---- subplot layout ----
     if show_emg and show_fr:
-        n_rows, row_heights = 6, [0.35, 0.35, 0.24, 0.24, 0.2, 0.2]
+        n_rows, row_heights = 6, [0.45, 0.45, 0.23, 0.23, 0.23, 0.23]
     elif show_emg:
-        n_rows, row_heights = 4, [0.26, 0.26, 0.24, 0.24]
+        n_rows, row_heights = 4, [0.3, 0.3, 0.24, 0.24]
     elif show_fr:
-        n_rows, row_heights = 4, [0.26, 0.26, 0.24, 0.24]
+        n_rows, row_heights = 4, [0.3, 0.3, 0.24, 0.24]
     else:
-        n_rows, row_heights = 2, [0.50, 0.50]
+        n_rows, row_heights = 2, [0.60, 0.40]
 
     fig = make_subplots(
         rows=n_rows, cols=1,
@@ -484,11 +484,11 @@ def make_sangerlab_presentation_figure(
                 connect=True, smooth_sec=SMOOTH_PANEL_SEC,
                 line_color=SIDE_COLORS[side["tag"]]["burst"],
             )
-            fig.update_yaxes(title_text=f"FR ({side['tag']})", row=fr_row, col=1)
             fig.update_xaxes(showticklabels=False, row=fr_row, col=1)
 
             # Network burst overlay on FR panel: both L and R bars on each panel
             y0, y1 = _fr_y_range(side["fr_df"])
+            fig.update_yaxes(title_text=f"FR ({side['tag']})", range=[y0, y1], row=fr_row, col=1)
             for bars, color_key in [(net_bars_L, "L"), (net_bars_R, "R")]:
                 if bars:
                     add_emg_shaders_from_windows(
@@ -505,8 +505,8 @@ def make_sangerlab_presentation_figure(
     for side in sides:
         colors = SIDE_COLORS[side["tag"]]
 
-        if side["net_wins"] and plot_network_bar:
-            # Use pre-computed bars from detection
+        if (side["net_bars"] or side["net_wins"]) and plot_network_bar:
+            # Use pre-computed bars from detection (net_bars alone is enough to draw)
             net_bars = side["net_bars"]
             if net_bars:
                 add_burst_bars_top_SIMPLE(
@@ -874,7 +874,7 @@ def add_firing_rate_panel(
 
     fig.add_trace(go.Scattergl(
         x=x, y=y,
-        mode="lines+markers" if connect else "markers",
+        mode="lines" if connect else "markers",
         line=line_kw,
         marker=dict(size=COACTIVITY_DOT_SIZE),
         hovertemplate="t=%{x:.3f}s<br>FR=%{y:.2f} Hz<extra></extra>",

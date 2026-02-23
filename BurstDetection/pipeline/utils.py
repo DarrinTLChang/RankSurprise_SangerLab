@@ -29,7 +29,10 @@ def compute_recording_duration_s(spike_struct) -> float:
     return float(ch0.dataSegmentLength)
 
 
-def parse_electrode(elec: str) -> dict:
+def parse_electrode(elec: str, combine_numbered_regions: bool | None = None) -> dict:
+    """Parse electrode string. If combine_numbered_regions is None, uses config COMBINE_NUMBERED_REGIONS."""
+    if combine_numbered_regions is None:
+        combine_numbered_regions = COMBINE_NUMBERED_REGIONS
     base = str(elec).replace("_CommonFiltered", "")
     parts = base.split("_")
 
@@ -39,13 +42,14 @@ def parse_electrode(elec: str) -> dict:
     side = parts[1] if len(parts) > 1 and parts[1] in ("L", "R") else ""
     idx = parts[2] if len(parts) > 2 and parts[2].isdigit() else (parts[2] if len(parts) > 2 else "")
 
-    region = re.sub(r"\d+$", "", head)
+    region = re.sub(r"\d+$", "", head) if combine_numbered_regions else head
 
     return {"base": base, "head": head, "side": side, "idx": idx, "region": region}
 
 
-def infer_region(elec: str) -> str:
-    return parse_electrode(elec)["region"]
+def infer_region(elec: str, combine_numbered_regions: bool | None = None) -> str:
+    """Return region for electrode. If combine_numbered_regions is None, uses config COMBINE_NUMBERED_REGIONS (True = GPi1+GPi2→GPi)."""
+    return parse_electrode(elec, combine_numbered_regions=combine_numbered_regions)["region"]
 
 
 def pretty_channel_label(elec: str, drop_side: bool) -> str:
@@ -278,7 +282,11 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
 def run_tag_from_params(params: dict) -> str:
     """Short, filesystem-safe directory name derived from run parameters."""
     m = params["method"]
-    parts = [f"SNR={params['SNR_MIN']}", f"FR={params['FR_MIN_HZ']}Hz"]
+    parts = [
+        "combinedGPi" if COMBINE_NUMBERED_REGIONS else "separateGPi",
+        f"SNR={params['SNR_MIN']}",
+        f"FR={params['FR_MIN_HZ']}Hz",
+    ]
 
     if m == "maxISI":
         parts += [

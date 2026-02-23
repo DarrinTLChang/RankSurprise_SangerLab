@@ -1,5 +1,6 @@
 # main.py
 from __future__ import annotations
+import shutil
 from pathlib import Path
 import numpy as np
 import scipy.io as spio
@@ -13,6 +14,13 @@ from pipeline.stats import *
 from pipeline.coactivity import *
 from pipeline.plotting import *
 from pipeline.isi import *
+from pipeline.region_exclusion_study import (
+    load_gt_spans,
+    iter_permutation_dirs,
+    run_network_with_excluded_regions,
+    get_permutation_data_for_plotting,
+    mean_iou_vs_gt,
+)
 
 
 def run_single_dataset(
@@ -32,6 +40,7 @@ def run_single_dataset(
 
     outputs_root = Path("outputs")
     output_RS_burst_root = Path("outputs_RS_burst")
+    output_region_exclusion_root = Path("outputs_region_exclusion")
     period_dir = period.replace(" ", "")
     patient_dir = patient
 
@@ -95,6 +104,73 @@ def run_single_dataset(
     region_windows_R = bd.region_windows_R
     region_bars_by_region_L = bd.region_bars_by_region_L
     region_bars_by_region_R = bd.region_bars_by_region_R
+
+    regions = None  # set by region exclusion study when enabled; used for permutation rasters
+
+    # --------------------------------------------------
+    # Region exclusion study (leave-K-out: CSVs per permutation + results)
+    # --------------------------------------------------
+    if RUN_REGION_EXCLUSION_STUDY and RS_NETWORK_ONSETS_TOGGLE:
+        regions = sorted(
+            set(infer_region(b["Electrode"]) for b in all_bursts_L)
+            | set(infer_region(b["Electrode"]) for b in all_bursts_R)
+        )
+        if not regions:
+            print("• Region exclusion study: no regions found, skipping")
+        else:
+            bursts_left = [dict(b, Region=infer_region(b["Electrode"])) for b in all_bursts_L]
+            bursts_right = [dict(b, Region=infer_region(b["Electrode"])) for b in all_bursts_R]
+            gt_left, gt_right = load_gt_spans(output_RS_burst_dir)
+            # Own root mirroring outputs_RS_burst: outputs_region_exclusion / patient / period / method / run_tag
+            study_base = output_region_exclusion_root / patient_dir / period_dir / thr_method_name / run_tag
+            study_base.mkdir(parents=True, exist_ok=True)
+            rows = []
+            for included_list, perm_dir in iter_permutation_dirs(study_base, regions, out_subdir=""):
+                excluded_set = set(regions) - set(included_list)
+                included_set = set(included_list)
+                included_str = "|".join(included_list)
+                perm_dir.mkdir(parents=True, exist_ok=True)
+                # Copy unit burst CSVs
+                for fname in ("unit_bursts_RS_left.csv", "unit_bursts_RS_right.csv"):
+                    src = output_RS_burst_dir / fname
+                    if src.exists():
+                        shutil.copy2(src, perm_dir / fname)
+                # Write region_bursts filtered to included regions
+                for side in ("left", "right"):
+                    path = output_RS_burst_dir / f"region_bursts_RS_{side}.csv"
+                    if path.exists():
+                        df_reg = pd.read_csv(path)
+                        if "Region" in df_reg.columns:
+                            df_reg = df_reg[df_reg["Region"].astype(str).isin(included_set)]
+                        df_reg.to_csv(perm_dir / f"region_bursts_RS_{side}.csv", index=False)
+                # Network detection and CSVs per side; collect IoU (append by side for reorder later)
+                for side, gt_spans, bursts in [
+                    ("left", gt_left, bursts_left),
+                    ("right", gt_right, bursts_right),
+                ]:
+                    network_rows, pred_spans, _ = run_network_with_excluded_regions(
+                        bursts, excluded_set
+                    )
+                    pd.DataFrame(network_rows).to_csv(
+                        perm_dir / f"network_bursts_RS_{side}.csv", index=False
+                    )
+                    mean_iou, n_matched = mean_iou_vs_gt(gt_spans, pred_spans)
+                    K_excluded = len(excluded_set)
+                    rows.append({
+                        "Side": side,
+                        "K_excluded": K_excluded,
+                        "Regions_included": included_str,
+                        "N_gt_spans": len(gt_spans),
+                        "N_pred_spans": len(pred_spans),
+                        "Mean_IoU": mean_iou,
+                        "N_gt_matched": n_matched,
+                    })
+            if rows:
+                df_out = pd.DataFrame(rows)
+                # All Left rows first, then all Right (sort by Side: left < right)
+                df_out = df_out.sort_values("Side", kind="stable")
+                df_out.to_csv(study_base / "results.csv", index=False)
+                print(f"• Region exclusion study: wrote {len(rows)} rows → {study_base / 'results.csv'}")
 
     # --------------------------------------------------
     # EMG
@@ -196,6 +272,68 @@ def run_single_dataset(
     )
 
     save_fig_interactive(fig, raster_dir / "sangerlab_presentation_LR_coact_EMG")
+
+    # Region exclusion study: Sanger raster per permutation (same figure, filtered data)
+    if RUN_REGION_EXCLUSION_STUDY and RS_NETWORK_ONSETS_TOGGLE and regions is not None:
+        study_base = output_region_exclusion_root / patient_dir / period_dir / thr_method_name / run_tag
+        for included_list, perm_dir in iter_permutation_dirs(study_base, regions, out_subdir=""):
+            if not perm_dir.exists():
+                continue
+            (filtered_L, filtered_R, reg_bars_L, reg_bars_R, net_bars_L, net_bars_R) = (
+                get_permutation_data_for_plotting(
+                    all_bursts_L, all_bursts_R,
+                    region_bars_by_region_L, region_bars_by_region_R,
+                    set(included_list),
+                )
+            )
+            inc_set = set(included_list)
+            filtered_clusters = {(e, c) for (e, c) in allowed_clusters if infer_region(e) in inc_set}
+            fr_perm_L = population_firing_rate_binned(
+                spike_struct_L, STATS, record_len_s,
+                bin_s=coactivity_bins_s, stride_s=stride_s,
+                allowed_clusters=filtered_clusters,
+                normalize_by_units=True,
+            )
+            fr_perm_R = population_firing_rate_binned(
+                spike_struct_R, STATS, record_len_s,
+                bin_s=coactivity_bins_s, stride_s=stride_s,
+                allowed_clusters=filtered_clusters,
+                normalize_by_units=True,
+            )
+            fig_perm = make_sangerlab_presentation_figure(
+                spike_struct_L=spike_struct_L,
+                spike_struct_R=spike_struct_R,
+                STATS=STATS,
+                all_bursts_L=filtered_L,
+                all_bursts_R=filtered_R,
+                record_len_s=record_len_s,
+                patient=patient,
+                period=period,
+                bin_s=coactivity_bins_s,
+                stride_s=stride_s,
+                run_params=run_params,
+                presentation_mode=presentation_mode,
+                allowed_clusters=filtered_clusters,
+                emg_t_s=t_emg,
+                emg_traces_L=emg_traces_L,
+                emg_traces_R=emg_traces_R,
+                emg_downsample=100,
+                network_windows_L=None,
+                network_windows_R=None,
+                network_bars_L=net_bars_L,
+                network_bars_R=net_bars_R,
+                region_windows_by_region_L=region_windows_L,
+                region_windows_by_region_R=region_windows_R,
+                region_bars_by_region_L=reg_bars_L,
+                region_bars_by_region_R=reg_bars_R,
+                disable_bursts=disable_bursts,
+                fr_df_L=fr_perm_L,
+                fr_df_R=fr_perm_R,
+                show_firing_rate=PLOT_FR,
+            )
+            raster_perm_dir = perm_dir / "raster_plots"
+            raster_perm_dir.mkdir(parents=True, exist_ok=True)
+            save_fig_interactive(fig_perm, raster_perm_dir / "sangerlab_presentation_LR_coact_EMG")
 
     # # --------------------------------------------------
     # # Network burst ISI stats
