@@ -19,6 +19,9 @@ BurstDetection/outputs/
 # Outputs (generated, can be reproduced) RS bursts
 BurstDetection/outputs_RS_burst/
 
+# Outputs (generated, can be reproduced) region exclusion
+BurstDetection/outputs_region_exclusion/
+
 # Old archived code
 BurstDetection/old/
 
