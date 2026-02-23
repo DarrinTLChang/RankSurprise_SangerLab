@@ -14,7 +14,7 @@ from pipeline.stats import *
 from pipeline.coactivity import *
 from pipeline.plotting import *
 from pipeline.isi import *
-from pipeline.region_exclusion_study import (
+from pipeline.region_exclusion import (
     load_gt_spans,
     iter_permutation_dirs,
     run_network_with_excluded_regions,

@@ -10,14 +10,14 @@ SpikeTime_Mat_File = [
     # "patient_data/s432/spikeTime_p7.mat",
     # "patient_data/s432/spikeTime_p9.mat", 
 
-    # "patient_data/s508/spikeTime_p1.mat",
-    # "patient_data/s508/spikeTime_p2.mat", 
-    # "patient_data/s508/spikeTime_p5.mat", 
-    # "patient_data/s508/spikeTime_p6.mat", 
-    # "patient_data/s508/spikeTime_p7.mat", 
-    # "patient_data/s508/spikeTime_p8.mat", 
-    # "patient_data/s508/spikeTime_p9.mat", 
-    # "patient_data/s508/spikeTime_p10.mat", 
+    "patient_data/s508/spikeTime_p1.mat",
+    "patient_data/s508/spikeTime_p2.mat", 
+    "patient_data/s508/spikeTime_p5.mat", 
+    "patient_data/s508/spikeTime_p6.mat", 
+    "patient_data/s508/spikeTime_p7.mat", 
+    "patient_data/s508/spikeTime_p8.mat", 
+    "patient_data/s508/spikeTime_p9.mat", 
+    "patient_data/s508/spikeTime_p10.mat", 
 
     # "patient_data/s509/spikeTime_p2.mat", 
     # "patient_data/s509/spikeTime_p3.mat", 
@@ -200,7 +200,7 @@ ISI_BAR_SHOW_STD = False
 # ============================================================
 # If True, strip trailing digits from electrode head so GPi1/GPi2 → GPi (one region).
 # If False, keep them separate (GPi1, GPi2 as distinct regions). Toggle as needed.
-COMBINE_NUMBERED_REGIONS: bool = True
+COMBINE_NUMBERED_REGIONS: bool = False
 
 REGION_COLORS: dict[str, str] = {
     "GPi": "rgb(60, 110, 230)",
