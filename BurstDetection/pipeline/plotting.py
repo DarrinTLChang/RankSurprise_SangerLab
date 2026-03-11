@@ -241,7 +241,9 @@ def add_emg_panel(fig: go.Figure,
                   row: int,
                   col: int = 1,
                   downsample: int = 20,
-                  side_label: str = ""):
+                  side_label: str = "",
+                  line_color: str = "black",
+                  show_y_ticks: bool = False):
     if t_s is None or len(t_s) == 0 or not emg_traces:
         return
 
@@ -263,7 +265,7 @@ def add_emg_panel(fig: go.Figure,
         fig.add_trace(go.Scattergl(
             x=tt, y=yy,
             mode="lines",
-            line=dict(color="black", width=1),
+            line=dict(color=line_color, width=1),
             name=name,
             showlegend=False,
         ), row=row, col=col)
@@ -271,9 +273,10 @@ def add_emg_panel(fig: go.Figure,
     fig.update_yaxes(
         title_text=side_label,
         row=row, col=col,
-        showticklabels=False,
-        ticks="",
-        ticklen=0,
+        showticklabels=show_y_ticks,
+        ticks="" if not show_y_ticks else None,
+        ticklen=4 if show_y_ticks else 0,
+        ticksuffix="p" if show_y_ticks else None,
     )
 
 
@@ -299,12 +302,15 @@ def _compute_network_bars(network_windows, all_bursts):
     bars = bars_from_onset_windows_using_all_bursts(
         network_windows, all_bursts,
         time_unit="ms", min_unique_channels=1, channel_mode="elec_cluster",
+        use_onset_plus_length=NETWORK_SPAN_ONSET_PLUS_LENGTH,
     )
     return _merge_windows_s(bars)
 
 
-def _fr_y_range(fr_df: pd.DataFrame):
-    """Return (y0, y1) for FR panel data range."""
+def _fr_y_range(fr_df: pd.DataFrame, fixed_max: float | None = None):
+    """Return (y0, y1) for FR panel. If fixed_max set, use [0, fixed_max] for consistent scale."""
+    if fixed_max is not None and fixed_max > 0:
+        return 0.0, float(fixed_max)
     if fr_df is None or len(fr_df) == 0 or "FR_Hz" not in fr_df.columns:
         return 0.0, 1.0
     vals = pd.to_numeric(fr_df["FR_Hz"], errors="coerce").dropna()
@@ -319,7 +325,11 @@ def _emg_y_range(traces):
     vals = vals[np.isfinite(vals)]
     if vals.size == 0:
         return -12.0, 2.0
-    return float(np.min(vals)), float(np.max(vals))
+    y0, y1 = float(np.min(vals)), float(np.max(vals))
+    if y1 <= y0:
+        y1 = y0 + max(abs(y0) * 0.01, 1e-12) if y0 != 0 else 1.0
+    return y0, y1
+
 
 
 SIDE_COLORS = {
@@ -347,6 +357,8 @@ def make_sangerlab_presentation_figure(
     emg_traces_L: list[tuple[str, np.ndarray]] | None = None,
     emg_traces_R: list[tuple[str, np.ndarray]] | None = None,
     emg_downsample: int = 100,
+    emg_panel_labels: tuple[str, str] | None = None,
+    emg_y_range: tuple[float, float] | None = None,
     network_windows_L=None,
     network_windows_R=None,
     network_bars_L=None,
@@ -372,11 +384,11 @@ def make_sangerlab_presentation_figure(
         and fr_df_R is not None and len(fr_df_R) > 0
     )
 
-    # ---- subplot layout ----
+    # ---- subplot layout: raster, then neo (EMG/proxy), then FR ----
     if show_emg and show_fr:
-        n_rows, row_heights = 6, [0.45, 0.45, 0.23, 0.23, 0.23, 0.23]
+        n_rows, row_heights = 6, [0.38, 0.38, 0.27, 0.27, 0.20, 0.20]
     elif show_emg:
-        n_rows, row_heights = 4, [0.3, 0.3, 0.24, 0.24]
+        n_rows, row_heights = 4, [0.22, 0.22, 0.28, 0.28]
     elif show_fr:
         n_rows, row_heights = 4, [0.3, 0.3, 0.24, 0.24]
     else:
@@ -473,10 +485,10 @@ def make_sangerlab_presentation_figure(
     net_bars_L = network_bars_L if network_bars_L is not None else []
     net_bars_R = network_bars_R if network_bars_R is not None else []
 
-    # ---- firing-rate panels ----
+    # ---- firing-rate panels (rows 5,6 when EMG also shown; else 3,4) ----
     if show_fr:
         for i, side in enumerate(sides):
-            fr_row = 3 + i
+            fr_row = (5 if show_emg else 3) + i
             add_firing_rate_panel(
                 fig, side["fr_df"], record_len_s,
                 row=fr_row, col=1,
@@ -487,8 +499,7 @@ def make_sangerlab_presentation_figure(
             fig.update_xaxes(showticklabels=False, row=fr_row, col=1)
 
             # Network burst overlay on FR panel: both L and R bars on each panel
-            y0, y1 = _fr_y_range(side["fr_df"])
-            fig.update_yaxes(title_text=f"FR ({side['tag']})", range=[y0, y1], row=fr_row, col=1)
+            y0, y1 = _fr_y_range(side["fr_df"], fixed_max=FR_Y_MAX)
             for bars, color_key in [(net_bars_L, "L"), (net_bars_R, "R")]:
                 if bars:
                     add_emg_shaders_from_windows(
@@ -528,19 +539,21 @@ def make_sangerlab_presentation_figure(
                 opacity=0.9, line_width=1.0,
             )
 
-    # ---- EMG panels with network-burst shaders ----
+    # ---- EMG/proxy panels (rows 3,4; before FR when both shown) ----
+    emg_labels = emg_panel_labels if emg_panel_labels is not None else ("Summed EMG (L)", "Summed EMG (R)")
     if show_emg:
         for i, side in enumerate(sides):
-            emg_row = (5 if show_fr else 3) + i
+            emg_row = 3 + i
 
             add_emg_panel(
                 fig, emg_t_s, side["emg_traces"], row=emg_row, col=1,
                 downsample=emg_downsample,
-                side_label=f"Summed EMG ({side['tag']})",
+                side_label=emg_labels[i],
+                line_color=SIDE_COLORS[side["tag"]]["burst"],
+                show_y_ticks=(emg_panel_labels is not None),
             )
 
-            y0, y1 = _emg_y_range(side["emg_traces"])
-
+            y0, y1 = (emg_y_range if emg_y_range is not None else _emg_y_range(side["emg_traces"]))
             for bars, color_key in [(net_bars_L, "L"), (net_bars_R, "R")]:
                 if bars:
                     add_emg_shaders_from_windows(
@@ -550,10 +563,16 @@ def make_sangerlab_presentation_figure(
                         opacity=1, layer="below", time_unit="s",
                     )
 
+            # Y-axis range: fixed when provided (e.g. [0,1] for proxy), else tight to data
+            fig.update_yaxes(range=[y0, y1], row=emg_row, col=1)
             fig.update_xaxes(showticklabels=False, row=emg_row, col=1)
 
-    # ---- x-axis and title ----
-    fig.update_xaxes(title_text="Time (s)", range=[0, record_len_s], row=n_rows, col=1)
+    # ---- x-axis and title (time scale visible on bottom row) ----
+    fig.update_xaxes(
+        title_text="Time (s)", range=[0, record_len_s],
+        showticklabels=True,
+        row=n_rows, col=1,
+    )
     for r in range(1, n_rows):
         fig.update_xaxes(showticklabels=False, row=r, col=1)
 
@@ -585,6 +604,7 @@ def bars_from_onset_windows_using_all_bursts(
     channel_mode: str = "elec_cluster",
     min_unique_channels: int = 1,
     pad_ms: float = 0.0,
+    use_onset_plus_length: bool = False,
 ) -> list[tuple[float, float]]:
     if not network_windows_ms:
         return []
@@ -624,16 +644,21 @@ def bars_from_onset_windows_using_all_bursts(
         if len(chans) < int(min_unique_channels):
             continue
 
-        starts = [s for s, _ in overlapping]
-        ends = [e for _, e in overlapping]
-        b0 = float(np.median(starts)) - pad_ms
-        b1 = float(np.median(ends)) + pad_ms
-        # b0 = float(np.mean(starts)) - pad_ms
-        # b1 = float(np.mean(ends)) + pad_ms
+        if use_onset_plus_length:
+            lengths = [e - s for (s, e) in overlapping]
+            median_length_ms = float(np.median(lengths))
+            b0 = w0 / 1000.0
+            b1 = (w0 + median_length_ms + pad_ms) / 1000.0
+        else:
+            starts = [s for s, _ in overlapping]
+            ends = [e for _, e in overlapping]
+            b0 = float(np.median(starts)) - pad_ms
+            b1 = float(np.median(ends)) + pad_ms
+            b0, b1 = b0 / 1000.0, b1 / 1000.0
         if b1 <= b0:
             continue
 
-        bars_s.append((b0 / 1000.0, b1 / 1000.0))
+        bars_s.append((b0, b1))
 
     return bars_s
 

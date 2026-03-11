@@ -61,17 +61,17 @@ def detect_bursts(
         if seg.size < min_spikes:
             continue
         dur = seg[-1] - seg[0]
-        if dur >= MIN_BURST_DURATION:
-            bursts_indiv.append(
-                dict(
-                    Start_ms=float(seg[0]),
-                    End_ms=float(seg[-1]),
-                    Duration_ms=float(dur),
-                    Num_Spikes=int(seg.size),
-                    thr=thr,
-                    FR_Hz=fr_hz,
-                )
+        # MIN_BURST_DURATION is applied only at final network burst level, not at unit level
+        bursts_indiv.append(
+            dict(
+                Start_ms=float(seg[0]),
+                End_ms=float(seg[-1]),
+                Duration_ms=float(dur),
+                Num_Spikes=int(seg.size),
+                thr=thr,
+                FR_Hz=fr_hz,
             )
+        )
     if len(bursts_indiv) < 2:
         return bursts_indiv
 
@@ -214,24 +214,28 @@ def compute_spans_and_bars(
     *,
     min_unique_channels: int = 1,
     channel_mode: str = "elec_cluster",
+    use_onset_plus_length: bool = False,
 ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
     """Compute spans for each window and merged bars for plotting.
-    
+
+    If use_onset_plus_length is False: span = (median(starts), median(ends)).
+    If use_onset_plus_length is True: span = (w0, w0 + median(burst lengths)).
+
     Returns:
         spans_ms: List of (span_start_ms, span_end_ms) per window (for CSV)
         bars_s: List of merged (start_s, end_s) bars (for plotting)
     """
     spans_ms: list[tuple[float, float]] = []
     bars_s: list[tuple[float, float]] = []
-    
+
     for w0, w1 in windows_ms:
         if not (np.isfinite(w0) and np.isfinite(w1)) or w1 <= w0:
             spans_ms.append((float("nan"), float("nan")))
             continue
-        
+
         overlapping = []
         chans = set()
-        
+
         for b in bursts:
             s = float(b.get("Start_ms", np.nan))
             e = float(b.get("End_ms", np.nan))
@@ -240,20 +244,26 @@ def compute_spans_and_bars(
             if (s >= w0) and (s <= w1):  # onset within window
                 overlapping.append((s, e))
                 chans.add(_ch_id(b, channel_mode))
-        
+
         if not overlapping or len(chans) < min_unique_channels:
             spans_ms.append((float("nan"), float("nan")))
             continue
-        
-        starts = [x[0] for x in overlapping]
-        ends = [x[1] for x in overlapping]
-        span_start = float(np.median(starts))
-        span_end = float(np.median(ends))
-        
+
+        if use_onset_plus_length:
+            lengths = [e - s for (s, e) in overlapping]
+            median_length_ms = float(np.median(lengths))
+            span_start = float(w0)
+            span_end = w0 + median_length_ms
+        else:
+            starts = [x[0] for x in overlapping]
+            ends = [x[1] for x in overlapping]
+            span_start = float(np.median(starts))
+            span_end = float(np.median(ends))
+
         if span_end <= span_start:
             spans_ms.append((float("nan"), float("nan")))
             continue
-        
+
         spans_ms.append((span_start, span_end))
         bars_s.append((span_start / 1000.0, span_end / 1000.0))
     
@@ -357,29 +367,33 @@ def rs_burst_detection(
             for s, L, rs in zip(start_idx, length_spikes, RSvals):
                 s = int(s); e = int(s + L - 1)
                 if 0 <= s < spk.size and 0 <= e < spk.size:
+                    dur_ms = float(spk[e] - spk[s])
+                    # By default MIN_BURST_DURATION is applied only at the final
+                    # network level. When APPLY_MIN_BURST_DURATION_ALL_STAGES is
+                    # True, also drop short bursts at the unit level here.
+                    if APPLY_MIN_BURST_DURATION_ALL_STAGES and dur_ms < float(MIN_BURST_DURATION):
+                        continue
                     unit_bursts.append({
                         "Electrode": elec,
                         "Cluster": int(cl),
                         "Start_ms": float(spk[s]),
                         "End_ms": float(spk[e]),
-                        "Duration_ms": float(spk[e] - spk[s]),
+                        "Duration_ms": dur_ms,
                         "Num_Spikes": int(L),
                         "RS": float(rs),
                         "Method": "RankSurprise",
                     })
 
         all_bursts = unit_bursts
+        # RS unit-level CSVs: unified burst fields
         unit_csv_rows = [
             {
                 "Electrode": b["Electrode"],
                 "Cluster": b["Cluster"],
-                "onset_start_ms": b["Start_ms"],
-                "onset_end_ms": b["End_ms"],
-                "onset_duration_ms": b["Duration_ms"],
-                "span_start_ms": b["Start_ms"],
-                "span_end_ms": b["End_ms"],
-                "span_duration_ms": b["Duration_ms"],
-                "Num_Spikes": b["Num_Spikes"],
+                "burst_start_ms": b["Start_ms"],
+                "burst_end_ms": b["End_ms"],
+                "burst_duration_ms": b["Duration_ms"],
+                "num_onsets": b["Num_Spikes"],
                 "RS": b["RS"],
                 "Method": b["Method"],
             }
@@ -424,6 +438,12 @@ def rs_burst_detection(
                     t0 = float(onsets_ms[s]); t1 = float(onsets_ms[e])
                     if t1 <= t0:
                         continue
+                    dur_ms = t1 - t0
+                    # When APPLY_MIN_BURST_DURATION_ALL_STAGES is True, also
+                    # drop short region-level bursts here. Otherwise, MIN_BURST_DURATION
+                    # is enforced only at the final network level below.
+                    if APPLY_MIN_BURST_DURATION_ALL_STAGES and dur_ms < float(MIN_BURST_DURATION):
+                        continue
                     windows.append((t0, t1))
                     rs_vals_for_windows.append(float(rs))
                     num_events_for_windows.append(int(L))
@@ -433,6 +453,7 @@ def rs_burst_detection(
                         windows, unit_bursts_in_reg,
                         min_unique_channels=MIN_UNIQUE_CHANNELS_REGION,
                         channel_mode="elec_cluster",
+                        use_onset_plus_length=REGION_SPAN_ONSET_PLUS_LENGTH,
                     )
                     
                     # Only keep windows that passed channel filter (have valid spans)
@@ -443,13 +464,10 @@ def rs_burst_detection(
                             span_dur = span[1] - span[0]
                             region_bursts.append({
                                 "Region": reg,
-                                "onset_start_ms": w[0],
-                                "onset_end_ms": w[1],
-                                "onset_duration_ms": float(w[1] - w[0]),
-                                "span_start_ms": span[0],
-                                "span_end_ms": span[1],
-                                "span_duration_ms": span_dur,
-                                "Num_Events": num_ev,
+                                "burst_start_ms": w[0],
+                                "burst_end_ms": w[0] + span_dur,
+                                "burst_duration_ms": span_dur,
+                                "num_onsets": num_ev,
                                 "RS": rs_val,
                                 "Method": "RS_region_onsets",
                             })
@@ -513,6 +531,9 @@ def rs_burst_detection(
                     t0 = float(onsets_ms[s2]); t1 = float(onsets_ms[e2])
                     if t1 <= t0:
                         continue
+                    # MIN_BURST_DURATION applied only at final network burst level (here)
+                    if (t1 - t0) < float(MIN_BURST_DURATION):
+                        continue
                     windows.append((t0, t1))
                     rs_vals_for_windows.append(float(rs2))
                     num_events_for_windows.append(int(L2))
@@ -522,6 +543,7 @@ def rs_burst_detection(
                         windows, all_bursts,
                         min_unique_channels=MIN_UNIQUE_CHANNELS_NETWORK,
                         channel_mode="elec_cluster",
+                        use_onset_plus_length=NETWORK_SPAN_ONSET_PLUS_LENGTH,
                     )
                     
                     # Only keep windows that passed channel filter (have valid spans)
@@ -530,12 +552,9 @@ def rs_burst_detection(
                             network_windows.append(w)
                             span_dur = span[1] - span[0]
                             network_bursts.append({
-                                "onset_start_ms": w[0],
-                                "onset_end_ms": w[1],
-                                "onset_duration_ms": float(w[1] - w[0]),
-                                "span_start_ms": span[0],
-                                "span_end_ms": span[1],
-                                "span_duration_ms": span_dur,
+                                "burst_start_ms": w[0],
+                                "burst_end_ms": w[0] + span_dur,
+                                "burst_duration_ms": span_dur,
                                 "num_onsets": num_ev,
                                 "RS": rs_val,
                             })

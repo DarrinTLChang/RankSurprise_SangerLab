@@ -247,7 +247,9 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
         "SNR_MIN": SNR_MIN,
         "FR_MIN_HZ": FR_MIN_HZ,
         "MIN_SPIKES_IN_BURST": MIN_SPIKES_IN_BURST,
+        "MIN_BURST_DURATION": MIN_BURST_DURATION,
         "pooling": pooling_toggle,
+        "MIN_UNIQUE_CHANNELS_NETWORK": MIN_UNIQUE_CHANNELS_NETWORK,
     }
 
     if method_name == "maxISI":
@@ -319,6 +321,8 @@ def run_tag_from_params(params: dict) -> str:
             f"aNet={an:.0%}",
             f"limNet={params['RS_limit_network']}",
             f"minSpk={params['MIN_SPIKES_IN_BURST']}",
+            f"minDur={params['MIN_BURST_DURATION']}ms",
+            f"minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}",
         ]
         if params["pooling"]:
             parts.append("pooled")

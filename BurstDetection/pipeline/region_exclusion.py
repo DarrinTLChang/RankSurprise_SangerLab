@@ -19,7 +19,9 @@ import pandas as pd
 
 from config import (
     MIN_SPIKES_IN_BURST,
+    MIN_BURST_DURATION,
     MIN_UNIQUE_CHANNELS_NETWORK,
+    NETWORK_SPAN_ONSET_PLUS_LENGTH,
     RS_Limit_network,
     RS_Percentile_Limit_network,
     RS_alpha_network,
@@ -29,11 +31,19 @@ from pipeline.utils import infer_region
 
 
 def _load_csv_safe(path: Path, required: bool = True) -> pd.DataFrame | None:
+    """
+    Read a CSV, returning an empty DataFrame on EmptyDataError.
+    If required is False and the file does not exist, return None.
+    """
     if not path.exists():
         if required:
             raise FileNotFoundError(f"Required file not found: {path}")
         return None
-    return pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        df = pd.DataFrame()
+    return df
 
 
 def _burst_in_region_windows(onset_ms: float, region_windows: list[tuple[float, float]]) -> bool:
@@ -69,17 +79,36 @@ def load_gt_and_bursts(
         infer_region_fn = infer_region
 
     def _load_gt(side: str) -> list[tuple[float, float]]:
+        """
+        Load GT network spans for one side from network_bursts_RS_{side}.csv.
+        Supports both legacy span_* schema and newer burst_* schema.
+        """
         path = run_dir / f"network_bursts_RS_{side}.csv"
         df = _load_csv_safe(path, required=True)
         if df is None or len(df) == 0:
             return []
-        spans = []
-        for _, row in df.iterrows():
-            s = pd.to_numeric(row.get("span_start_ms"), errors="coerce")
-            e = pd.to_numeric(row.get("span_end_ms"), errors="coerce")
-            if np.isfinite(s) and np.isfinite(e) and e > s:
-                spans.append((float(s), float(e)))
-        return spans
+        spans: list[tuple[float, float]] = []
+
+        # Prefer explicit span_* columns if present (legacy schema)
+        if "span_start_ms" in df.columns and "span_end_ms" in df.columns:
+            for _, row in df.iterrows():
+                s = pd.to_numeric(row.get("span_start_ms"), errors="coerce")
+                e = pd.to_numeric(row.get("span_end_ms"), errors="coerce")
+                if np.isfinite(s) and np.isfinite(e) and e > s:
+                    spans.append((float(s), float(e)))
+            return spans
+
+        # Fallback: newer schema uses burst_start_ms / burst_end_ms as the normative span
+        if "burst_start_ms" in df.columns and "burst_end_ms" in df.columns:
+            for _, row in df.iterrows():
+                s = pd.to_numeric(row.get("burst_start_ms"), errors="coerce")
+                e = pd.to_numeric(row.get("burst_end_ms"), errors="coerce")
+                if np.isfinite(s) and np.isfinite(e) and e > s:
+                    spans.append((float(s), float(e)))
+            return spans
+
+        # No recognizable span columns
+        return []
 
     def _load_unit_bursts(side: str) -> pd.DataFrame:
         path = run_dir / f"unit_bursts_RS_{side}.csv"
@@ -143,7 +172,10 @@ def load_gt_and_bursts(
 
 
 def load_gt_spans(run_dir: Path) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
-    """Load ground-truth network spans (span_start_ms, span_end_ms) per side from network_bursts CSVs."""
+    """
+    Load ground-truth network spans per side from network_bursts CSVs.
+    Supports both legacy span_* schema and newer burst_* schema.
+    """
     run_dir = Path(run_dir)
     gt_left, gt_right = [], []
 
@@ -157,13 +189,56 @@ def load_gt_spans(run_dir: Path) -> tuple[list[tuple[float, float]], list[tuple[
             continue
         if df.empty:
             continue
-        for _, row in df.iterrows():
-            s = pd.to_numeric(row.get("span_start_ms"), errors="coerce")
-            e = pd.to_numeric(row.get("span_end_ms"), errors="coerce")
-            if np.isfinite(s) and np.isfinite(e) and e > s:
-                out.append((float(s), float(e)))
+        # Prefer explicit span_* columns if present (legacy schema)
+        if "span_start_ms" in df.columns and "span_end_ms" in df.columns:
+            for _, row in df.iterrows():
+                s = pd.to_numeric(row.get("span_start_ms"), errors="coerce")
+                e = pd.to_numeric(row.get("span_end_ms"), errors="coerce")
+                if np.isfinite(s) and np.isfinite(e) and e > s:
+                    out.append((float(s), float(e)))
+        # Fallback: newer schema uses burst_start_ms / burst_end_ms
+        elif "burst_start_ms" in df.columns and "burst_end_ms" in df.columns:
+            for _, row in df.iterrows():
+                s = pd.to_numeric(row.get("burst_start_ms"), errors="coerce")
+                e = pd.to_numeric(row.get("burst_end_ms"), errors="coerce")
+                if np.isfinite(s) and np.isfinite(e) and e > s:
+                    out.append((float(s), float(e)))
 
     return gt_left, gt_right
+
+
+def load_gt_onset_starts(run_dir: Path) -> tuple[list[float], list[float]]:
+    """
+    Load ground-truth network onset start times per side from network_bursts CSVs.
+    Supports both legacy onset_* schema and newer burst_* schema.
+    """
+    run_dir = Path(run_dir)
+    left_starts, right_starts = [], []
+
+    for side, out in [("left", left_starts), ("right", right_starts)]:
+        path = run_dir / f"network_bursts_RS_{side}.csv"
+        if not path.exists():
+            continue
+        try:
+            df = pd.read_csv(path)
+        except pd.errors.EmptyDataError:
+            continue
+        if df.empty:
+            continue
+        # Prefer explicit onset_start_ms if present (legacy schema)
+        if "onset_start_ms" in df.columns:
+            for _, row in df.iterrows():
+                t = pd.to_numeric(row.get("onset_start_ms"), errors="coerce")
+                if np.isfinite(t):
+                    out.append(float(t))
+        # Fallback: in newer schema, burst_start_ms is the onset start
+        elif "burst_start_ms" in df.columns:
+            for _, row in df.iterrows():
+                t = pd.to_numeric(row.get("burst_start_ms"), errors="coerce")
+                if np.isfinite(t):
+                    out.append(float(t))
+
+    return left_starts, right_starts
 
 
 def run_network_with_excluded_regions(
@@ -213,6 +288,8 @@ def run_network_with_excluded_regions(
         t1 = float(onsets_ms[e])
         if t1 <= t0:
             continue
+        if (t1 - t0) < float(MIN_BURST_DURATION):
+            continue
         windows.append((t0, t1))
         rs_vals_for_windows.append(float(rs))
         num_events_for_windows.append(int(L))
@@ -225,6 +302,7 @@ def run_network_with_excluded_regions(
         filtered,
         min_unique_channels=min_unique_channels,
         channel_mode="elec_cluster",
+        use_onset_plus_length=NETWORK_SPAN_ONSET_PLUS_LENGTH,
     )
 
     network_bursts_rows: list[dict[str, Any]] = []
@@ -262,22 +340,109 @@ def span_iou(a: tuple[float, float], b: tuple[float, float]) -> float:
 def mean_iou_vs_gt(
     gt_spans: list[tuple[float, float]],
     pred_spans: list[tuple[float, float]],
-) -> tuple[float, int]:
+) -> tuple[float, int, int]:
     """
     For each GT span, take the max IoU with any predicted span; mean IoU over GT.
-    N_gt_matched: number of GT spans that have IoU > 0 with at least one pred.
-    (One pred can overlap multiple GTs, so N_gt_matched can exceed N_pred_spans.)
+    Matching is overlap-based: any overlap (IoU > 0) counts as matched.
+    Returns:
+      mean_iou: mean over GT of (max IoU with any pred).
+      n_gt_matched: number of GT spans that overlap at least one pred.
+      n_pred_matched: number of pred spans that overlap at least one GT.
     """
     if not gt_spans:
-        return float("nan"), 0
+        return float("nan"), 0, 0
     ious = []
     for g in gt_spans:
         best = 0.0
         for p in pred_spans:
             best = max(best, span_iou(g, p))
         ious.append(best)
-    n_matched = sum(1 for x in ious if x > 0)
-    return float(np.mean(ious)), n_matched
+    n_gt_matched = sum(1 for x in ious if x > 0)
+    n_pred_matched = sum(
+        1 for p in pred_spans if any(span_iou(g, p) > 0 for g in gt_spans)
+    )
+    return float(np.mean(ious)), n_gt_matched, n_pred_matched
+
+
+def matched_pairs_metrics(
+    gt_spans: list[tuple[float, float]],
+    pred_spans: list[tuple[float, float]],
+    gt_onset_starts: list[float],
+    pred_onset_starts: list[float],
+) -> tuple[float, int, int, int]:
+    """
+    For accuracy of predictions we do make: each GT is matched at most once.
+    If multiple preds overlap the same GT, keep only the pred with the smallest
+    onset error to that GT; discard the others from all calculations (they are
+    not counted in the percentage denominator).
+    Returns:
+      mean_onset_error_ms: mean |gt_onset - pred_onset| over the kept (GT, pred) pairs.
+      n_matched_pairs: number of GTs that had at least one overlapping pred (one pair per such GT).
+      n_pred_kept: number of unique preds that were the chosen match for at least one GT.
+      n_pred_overlapping_any_gt: number of preds that overlap at least one GT (kept + discarded).
+    """
+    if not gt_spans or not gt_onset_starts:
+        return float("nan"), 0, 0, 0
+    errors: list[float] = []
+    pred_indices_kept: set[int] = set()
+    pred_indices_overlapping_any: set[int] = set()
+    for i, g in enumerate(gt_spans):
+        g_onset = gt_onset_starts[i] if i < len(gt_onset_starts) else g[0]
+        best_err = float("inf")
+        best_pred_idx: int | None = None
+        for j, p in enumerate(pred_spans):
+            if span_iou(g, p) <= 0:
+                continue
+            pred_indices_overlapping_any.add(j)
+            p_onset = pred_onset_starts[j] if j < len(pred_onset_starts) else p[0]
+            err = abs(g_onset - p_onset)
+            if err < best_err:
+                best_err = err
+                best_pred_idx = j
+        if best_pred_idx is not None:
+            errors.append(best_err)
+            pred_indices_kept.add(best_pred_idx)
+    if not errors:
+        return float("nan"), 0, 0, 0
+    return float(np.mean(errors)), len(errors), len(pred_indices_kept), len(pred_indices_overlapping_any)
+
+
+def mean_onset_start_error_ms(
+    gt_onset_starts: list[float],
+    pred_onset_starts: list[float],
+) -> float:
+    """
+    For each GT onset start, take the minimum absolute difference to any predicted onset start.
+    Return the mean of those minimum differences (ms). Measures alignment of onset timing, not span.
+    """
+    if not gt_onset_starts:
+        return float("nan")
+    gt_arr = np.asarray(gt_onset_starts, dtype=float)
+    if not pred_onset_starts:
+        return float("nan")
+    pred_arr = np.asarray(pred_onset_starts, dtype=float)
+    # per GT: min |gt - pred|
+    min_diffs = np.min(np.abs(gt_arr[:, np.newaxis] - pred_arr), axis=1)
+    return float(np.mean(min_diffs))
+
+
+def mean_onset_start_error_pred_to_gt_ms(
+    gt_onset_starts: list[float],
+    pred_onset_starts: list[float],
+) -> float:
+    """
+    Reverse of mean_onset_start_error_ms: for each *predicted* onset start, take the minimum
+    absolute difference to any GT onset start; return the mean of those (ms).
+    """
+    if not pred_onset_starts:
+        return float("nan")
+    pred_arr = np.asarray(pred_onset_starts, dtype=float)
+    if not gt_onset_starts:
+        return float("nan")
+    gt_arr = np.asarray(gt_onset_starts, dtype=float)
+    # per pred: min |pred - gt|
+    min_diffs = np.min(np.abs(pred_arr[:, np.newaxis] - gt_arr), axis=1)
+    return float(np.mean(min_diffs))
 
 
 def iter_permutation_dirs(
@@ -368,6 +533,7 @@ def run_region_exclusion_study(
     gt_left, gt_right, bursts_left, bursts_right, regions = load_gt_and_bursts(
         run_dir, infer_region_fn=infer_region_fn
     )
+    gt_onset_left, gt_onset_right = load_gt_onset_starts(run_dir)
 
     N = len(regions)
     if N == 0:
@@ -412,23 +578,35 @@ def run_region_exclusion_study(
                         df_reg = df_reg[df_reg["Region"].astype(str).isin(included_set)]
                     df_reg.to_csv(perm_dir / f"region_bursts_RS_{side}.csv", index=False)
 
-            for side, gt_spans, bursts in [
-                ("left", gt_left, bursts_left),
-                ("right", gt_right, bursts_right),
+            for side, gt_spans, gt_onset_starts, bursts in [
+                ("left", gt_left, gt_onset_left, bursts_left),
+                ("right", gt_right, gt_onset_right, bursts_right),
             ]:
                 network_rows, pred_spans, _ = run_network_with_excluded_regions(bursts, excluded_set)
                 pd.DataFrame(network_rows).to_csv(
                     perm_dir / f"network_bursts_RS_{side}.csv", index=False
                 )
-                mean_iou, n_matched = mean_iou_vs_gt(gt_spans, pred_spans)
+                mean_iou, n_gt_matched, n_pred_matched = mean_iou_vs_gt(gt_spans, pred_spans)
+                pred_onset_starts = [r["onset_start_ms"] for r in network_rows]
+                mean_onset_err_ms = mean_onset_start_error_ms(gt_onset_starts, pred_onset_starts)
+                mean_onset_err_pred_to_gt_ms = mean_onset_start_error_pred_to_gt_ms(gt_onset_starts, pred_onset_starts)
+                n_gt = len(gt_spans)
+                n_pred = len(pred_spans)
+                pct_gt_matched = (100.0 * n_gt_matched / n_gt) if n_gt else float("nan")
+                pct_pred_matched = (100.0 * n_pred_matched / n_pred) if n_pred else float("nan")
                 rows.append({
                     "Side": side,
                     "K_excluded": K,
                     "Regions_included": included_str,
-                    "N_gt_spans": len(gt_spans),
-                    "N_pred_spans": len(pred_spans),
+                    "N_gt_spans": n_gt,
+                    "N_pred_spans": n_pred,
                     "Mean_IoU": mean_iou,
-                    "N_gt_matched": n_matched,
+                    "N_gt_matched": n_gt_matched,
+                    "Pct_GT_matched": pct_gt_matched,
+                    "N_pred_matched": n_pred_matched,
+                    "Pct_pred_matched": pct_pred_matched,
+                    "Mean_onset_start_error_ms": mean_onset_err_ms,
+                    "Mean_onset_start_error_pred_to_gt_ms": mean_onset_err_pred_to_gt_ms,
                 })
 
     df = pd.DataFrame(rows)

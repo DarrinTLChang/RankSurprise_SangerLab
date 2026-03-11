@@ -1,0 +1,11 @@
+outputs_RS_burst/
+Contains CSV files with all detected bursts at three levels:
+Cluster (unit) bursts – single-unit/cluster level
+Region bursts – regional level
+Network bursts – whole-network level
+
+
+In each CSV:
+Onset columns (onset_start_ms, onset_end_ms, onset_duration_ms) describe the detection window (when the burst was detected).
+Span columns (span_start_ms, span_end_ms, span_duration_ms) describe the actual bursting period (median start/end of overlapping unit bursts whose onsets fall in that window).
+So: onset = when we call it a burst; span = the time span of the underlying activity.
