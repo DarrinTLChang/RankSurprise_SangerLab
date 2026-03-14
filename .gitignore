@@ -5,28 +5,38 @@
 !requirements.txt
 !README.md
 
-# Inside BurstDetection/
+# BurstDetection: ignore everything except these files and folders (track only these)
+BurstDetection/*
+!BurstDetection/channel_burst_roc.py
+!BurstDetection/channel_reduction_study.py
+!BurstDetection/compare_proxy_vs_network.py
+!BurstDetection/config.py
+!BurstDetection/cross_patient_region_exclusion.py
+!BurstDetection/main.py
+!BurstDetection/onset_triggered_proxy.py
+!BurstDetection/plot_proxy_vs_fr_by_patient.py
+!BurstDetection/plot_proxy_vs_network_by_patient.py
+!BurstDetection/proxy_detection_demo.py
+!BurstDetection/proxy_lag_analysis.py
+!BurstDetection/proxy_slope_detection.py
+!BurstDetection/proxy_lag_plots/
+!BurstDetection/proxy_slope_detection/
+!BurstDetection/scripts/
+!BurstDetection/csv/
+
+# Pipeline: track only these files, nothing else in pipeline/
+!BurstDetection/pipeline/__init__.py
+!BurstDetection/pipeline/coactivity.py
+!BurstDetection/pipeline/detection.py
+!BurstDetection/pipeline/emg.py
+!BurstDetection/pipeline/isi.py
+!BurstDetection/pipeline/plotting.py
+!BurstDetection/pipeline/region_exclusion.py
+!BurstDetection/pipeline/stats.py
+!BurstDetection/pipeline/utils.py
+
+# General
 __pycache__/
 *.pyc
 *.pyo
-
-# Patient data (large .mat files)
-BurstDetection/patient_data/
-
-# Outputs (generated, can be reproduced)
-BurstDetection/outputs/
-
-# Outputs (generated, can be reproduced) RS bursts
-BurstDetection/outputs_RS_burst/
-
-# Outputs (generated, can be reproduced) region exclusion
-BurstDetection/outputs_region_exclusion/
-
-# Old archived code
-BurstDetection/old/
-
-# Matlab scripts
-BurstDetection/Matlab/
-
-# OS junk
 .DS_Store
