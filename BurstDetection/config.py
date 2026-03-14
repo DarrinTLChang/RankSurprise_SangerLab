@@ -118,9 +118,17 @@ SpikeTime_Mat_File = [
     # "patient_data/s530/spikeTime_p2.mat",
     # "patient_data/s530/spikeTime_p3.mat",
 
-    "patient_data/s531/day1_test/spikeTime_p2.mat",
-    "patient_data/s531/day1_test/spikeTime_p3.mat",
+    # "patient_data/s531/day1_test/spikeTime_p2.mat",
+    # "patient_data/s531/day1_test/spikeTime_p3.mat",
     # 'patient_data/s531/day1_baseline/spikeTime_p3.mat',
+    
+
+    "patient_data/s531/day2_baseline/spikeTime_p2.mat",
+    "patient_data/s531/day2_baseline/spikeTime_p3.mat",
+
+
+    # "patient_data/s531/day4_baseline/spikeTime_p5.mat",
+
 
 ]
 
