@@ -1,39 +1,35 @@
-# Only track BurstDetection/ — ignore everything else at root
-/*
-!BurstDetection/
+# BurstDetection: ignore everything except these files and folders (paths relative to BurstDetection/)
+*
 !.gitignore
-!requirements.txt
-!README.md
+!channel_burst_roc.py
+!channel_reduction_study.py
+!compare_proxy_vs_network.py
+!config.py
+!cross_patient_region_exclusion.py
+!main.py
+!onset_triggered_proxy.py
+!plot_proxy_vs_fr_by_patient.py
+!plot_proxy_vs_network_by_patient.py
+!proxy_detection_demo.py
+!proxy_lag_analysis.py
+!proxy_slope_detection.py
+!proxy_lag_plots/
+!proxy_slope_detection/
+!scripts/
+!csv/
 
-# BurstDetection: ignore everything except these files and folders (track only these)
-BurstDetection/*
-!BurstDetection/channel_burst_roc.py
-!BurstDetection/channel_reduction_study.py
-!BurstDetection/compare_proxy_vs_network.py
-!BurstDetection/config.py
-!BurstDetection/cross_patient_region_exclusion.py
-!BurstDetection/main.py
-!BurstDetection/onset_triggered_proxy.py
-!BurstDetection/plot_proxy_vs_fr_by_patient.py
-!BurstDetection/plot_proxy_vs_network_by_patient.py
-!BurstDetection/proxy_detection_demo.py
-!BurstDetection/proxy_lag_analysis.py
-!BurstDetection/proxy_slope_detection.py
-!BurstDetection/proxy_lag_plots/
-!BurstDetection/proxy_slope_detection/
-!BurstDetection/scripts/
-!BurstDetection/csv/
-
-# Pipeline: track only these files, nothing else in pipeline/
-!BurstDetection/pipeline/__init__.py
-!BurstDetection/pipeline/coactivity.py
-!BurstDetection/pipeline/detection.py
-!BurstDetection/pipeline/emg.py
-!BurstDetection/pipeline/isi.py
-!BurstDetection/pipeline/plotting.py
-!BurstDetection/pipeline/region_exclusion.py
-!BurstDetection/pipeline/stats.py
-!BurstDetection/pipeline/utils.py
+# Pipeline: allow directory then ignore contents except these files
+!pipeline/
+pipeline/*
+!pipeline/__init__.py
+!pipeline/coactivity.py
+!pipeline/detection.py
+!pipeline/emg.py
+!pipeline/isi.py
+!pipeline/plotting.py
+!pipeline/region_exclusion.py
+!pipeline/stats.py
+!pipeline/utils.py
 
 # General
 __pycache__/
