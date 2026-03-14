@@ -319,23 +319,17 @@ def rs_burst_detection(
     iter_units_fn,
     infer_region_fn,
     burst_in_window_fn,
-    output_RS_burst_dir: Path | None = None,
 ) -> BurstResults:
     """Run the full burst-detection pipeline (unit -> region -> network).
 
-    Burst CSVs (unit, region, network) are written to run_dir so they sit next to
-    the figure and always match the current STATS (SNR/FR filter). If
-    output_RS_burst_dir is given and different from run_dir, the same CSVs are
-    also written there for downstream scripts.
+    Burst CSVs (unit_bursts_RS_*, region_bursts_RS_*, network_bursts_RS_*) are
+    written only to run_dir. Call with run_dir=output_RS_burst_dir so the
+    canonical burst CSVs live under outputs_RS_burst (not under outputs/).
 
     Parameters
     ----------
     run_dir : Path
-        Directory for this run (figure + burst CSVs); must match the run that
-        produced STATS so CSV and figure stay in sync.
-    output_RS_burst_dir : Path | None
-        If set and != run_dir, burst CSVs are also written here (e.g. for
-        region exclusion / outputs_RS_burst).
+        Directory to write burst CSVs (use output_RS_burst_dir from main).
     iter_units_fn : callable
         ``iter_units_from_stats(spike_struct, STATS)`` — yields (elec, cl, spk).
     infer_region_fn : callable
@@ -350,11 +344,8 @@ def rs_burst_detection(
     ]
 
     def _write_csv(df: pd.DataFrame, name: str) -> None:
-        path = run_dir / name
-        df.to_csv(path, index=False)
-        if output_RS_burst_dir is not None and output_RS_burst_dir != run_dir:
-            output_RS_burst_dir.mkdir(parents=True, exist_ok=True)
-            df.to_csv(output_RS_burst_dir / name, index=False)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        df.to_csv(run_dir / name, index=False)
 
     res = BurstResults()
 

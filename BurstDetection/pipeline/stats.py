@@ -9,6 +9,14 @@ from pathlib import Path
 from config import *
 
 
+def snr_fails_filter(snr_val: float) -> bool:
+    """True if cluster should be excluded: NaN, below SNR_MIN, or above SNR_MAX (if set)."""
+    if np.isnan(snr_val) or snr_val < SNR_MIN:
+        return True
+    if SNR_MAX is not None and snr_val > SNR_MAX:
+        return True
+    return False
+
 
 def build_cache(
     mat_file: str,
@@ -31,7 +39,10 @@ def build_cache(
     """
     mat = spio.loadmat(mat_file, squeeze_me=True, struct_as_record=False)
 
+    print(f"[DEBUG build_cache] SNR_MIN={SNR_MIN}, SNR_MAX={SNR_MAX}")
     rows: list[dict[str, Any]] = []
+    _skipped_snr = 0
+    _kept = 0
 
     for ch in np.ravel(mat["spikeTime"]):
         elec = str(ch.electrode)
@@ -46,8 +57,11 @@ def build_cache(
             fr_hz = spk.size / record_len_s
             if fr_hz < FR_MIN_HZ:
                 continue
-            if np.isnan(snr_val) or snr_val < SNR_MIN or snr_val > SNR_MAX:
+            if snr_fails_filter(snr_val):
+                _skipped_snr += 1
+                print(f"  [SKIP] {elec} cl={cl} SNR={snr_val:.3f} (fails filter)")
                 continue
+            _kept += 1
 
             isis = np.diff(spk.astype(float))
 
@@ -88,6 +102,10 @@ def build_cache(
     df = pd.DataFrame(rows)
     df.to_csv(cluster_stats_csv, index=False)
 
+    print(f"[DEBUG build_cache] Kept {_kept} clusters, skipped {_skipped_snr} by SNR filter")
+    if _kept > 0:
+        snr_vals = [r["SNR"] for r in rows if not np.isnan(r["SNR"])]
+        print(f"[DEBUG build_cache] SNR range of kept: {min(snr_vals):.2f} – {max(snr_vals):.2f}")
     print(f"• Wrote {len(df)} rows → {cluster_stats_csv}")
 
     if pooling_toggle:
@@ -104,7 +122,7 @@ def build_cache(
                 fr_hz_cl = spk.size / record_len_s
                 if fr_hz_cl < FR_MIN_HZ:
                     continue
-                if np.isnan(snr_val) or snr_val < SNR_MIN or snr_val > SNR_MAX:
+                if snr_fails_filter(snr_val):
                     continue
                 pooled.append(spk)
             if not pooled:

@@ -120,6 +120,7 @@ SpikeTime_Mat_File = [
 
     "patient_data/s531/day1_test/spikeTime_p2.mat",
     "patient_data/s531/day1_test/spikeTime_p3.mat",
+    # 'patient_data/s531/day1_baseline/spikeTime_p3.mat',
 
 ]
 
@@ -215,7 +216,7 @@ APPLY_MIN_BURST_DURATION_ALL_STAGES = False
 # Filtering
 FR_MIN_HZ = 0.8
 SNR_MIN = 1.2
-SNR_MAX = 100000
+SNR_MAX = 1000
 
 # ============================================================
 # RANK SURPRISE PARAMETERS

@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from config import *
 from .detection import *
+from .stats import snr_fails_filter
 from collections import defaultdict
 
 
@@ -180,7 +181,7 @@ def pool_spike_struct_per_channel(spike_struct, record_len_s):
             if fr_hz < FR_MIN_HZ:
                 continue
             snr_val = float(snr_arr[cl]) if cl < snr_arr.size else float("nan")
-            if np.isnan(snr_val) or snr_val < SNR_MIN or snr_val > SNR_MAX:
+            if snr_fails_filter(snr_val):
                 continue
             pooled.append(spk)
 
