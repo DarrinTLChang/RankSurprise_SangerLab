@@ -118,7 +118,9 @@ SpikeTime_Mat_File = [
     # "patient_data/s530/spikeTime_p2.mat",
     # "patient_data/s530/spikeTime_p3.mat",
 
-    "patient_data/s531/spikeTime_p3.mat",
+    "patient_data/s531/day1_test/spikeTime_p2.mat",
+    "patient_data/s531/day1_test/spikeTime_p3.mat",
+
 ]
 
 # Root for fast proxy Excel files (same tree used by compare_proxy_vs_network.py).
@@ -173,7 +175,7 @@ plot_network_bar = True
 # the SangerLab presentation figure instead of EMG. When this is True, EMG is
 # not loaded and the bottom panel shows hemi_proxy instead, with the same size
 # and layout as the EMG panel.
-PLOT_PROXY_PANEL = True
+PLOT_PROXY_PANEL = False
 PLOT_EMG = False
 
 # Method selection (exactly one must be True)
@@ -213,6 +215,7 @@ APPLY_MIN_BURST_DURATION_ALL_STAGES = False
 # Filtering
 FR_MIN_HZ = 0.8
 SNR_MIN = 1.2
+SNR_MAX = 100000
 
 # ============================================================
 # RANK SURPRISE PARAMETERS

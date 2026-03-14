@@ -319,11 +319,23 @@ def rs_burst_detection(
     iter_units_fn,
     infer_region_fn,
     burst_in_window_fn,
+    output_RS_burst_dir: Path | None = None,
 ) -> BurstResults:
     """Run the full burst-detection pipeline (unit -> region -> network).
 
+    Burst CSVs (unit, region, network) are written to run_dir so they sit next to
+    the figure and always match the current STATS (SNR/FR filter). If
+    output_RS_burst_dir is given and different from run_dir, the same CSVs are
+    also written there for downstream scripts.
+
     Parameters
     ----------
+    run_dir : Path
+        Directory for this run (figure + burst CSVs); must match the run that
+        produced STATS so CSV and figure stay in sync.
+    output_RS_burst_dir : Path | None
+        If set and != run_dir, burst CSVs are also written here (e.g. for
+        region exclusion / outputs_RS_burst).
     iter_units_fn : callable
         ``iter_units_from_stats(spike_struct, STATS)`` — yields (elec, cl, spk).
     infer_region_fn : callable
@@ -336,6 +348,13 @@ def rs_burst_detection(
         (spike_struct_L, "left"),
         (spike_struct_R, "right"),
     ]
+
+    def _write_csv(df: pd.DataFrame, name: str) -> None:
+        path = run_dir / name
+        df.to_csv(path, index=False)
+        if output_RS_burst_dir is not None and output_RS_burst_dir != run_dir:
+            output_RS_burst_dir.mkdir(parents=True, exist_ok=True)
+            df.to_csv(output_RS_burst_dir / name, index=False)
 
     res = BurstResults()
 
@@ -399,7 +418,7 @@ def rs_burst_detection(
             }
             for b in unit_bursts
         ]
-        pd.DataFrame(unit_csv_rows).to_csv(run_dir / f"unit_bursts_RS_{side_tag}.csv", index=False)
+        _write_csv(pd.DataFrame(unit_csv_rows), f"unit_bursts_RS_{side_tag}.csv")
 
         # Stage 1.5: region-level bursts
         region_windows_by_region: dict[str, list[tuple[float, float]]] = {}
@@ -489,7 +508,7 @@ def rs_burst_detection(
                 if flag:
                     all_bursts_region.append(b)
 
-            pd.DataFrame(region_bursts).to_csv(run_dir / f"region_bursts_RS_{side_tag}.csv", index=False)
+            _write_csv(pd.DataFrame(region_bursts), f"region_bursts_RS_{side_tag}.csv")
 
             region_windows_rows = []
             for reg, wins in region_windows_by_region.items():
@@ -565,7 +584,7 @@ def rs_burst_detection(
             for b in all_bursts:
                 b["IsNetworkBurst"] = burst_in_window_fn(float(b["Start_ms"]), network_windows)
 
-            pd.DataFrame(network_bursts).to_csv(run_dir / f"network_bursts_RS_{side_tag}.csv", index=False)
+            _write_csv(pd.DataFrame(network_bursts), f"network_bursts_RS_{side_tag}.csv")
 
             network_windows_rows = [{
                 "Start_ms": float(t0),

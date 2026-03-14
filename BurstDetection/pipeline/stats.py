@@ -46,7 +46,7 @@ def build_cache(
             fr_hz = spk.size / record_len_s
             if fr_hz < FR_MIN_HZ:
                 continue
-            if np.isnan(snr_val) or snr_val < SNR_MIN:
+            if np.isnan(snr_val) or snr_val < SNR_MIN or snr_val > SNR_MAX:
                 continue
 
             isis = np.diff(spk.astype(float))
@@ -104,8 +104,8 @@ def build_cache(
                 fr_hz_cl = spk.size / record_len_s
                 if fr_hz_cl < FR_MIN_HZ:
                     continue
-                if np.isnan(snr_val) or snr_val < SNR_MIN:
-                        continue
+                if np.isnan(snr_val) or snr_val < SNR_MIN or snr_val > SNR_MAX:
+                    continue
                 pooled.append(spk)
             if not pooled:
                 continue

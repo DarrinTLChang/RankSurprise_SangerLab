@@ -180,7 +180,7 @@ def pool_spike_struct_per_channel(spike_struct, record_len_s):
             if fr_hz < FR_MIN_HZ:
                 continue
             snr_val = float(snr_arr[cl]) if cl < snr_arr.size else float("nan")
-            if np.isnan(snr_val) or snr_val < SNR_MIN:
+            if np.isnan(snr_val) or snr_val < SNR_MIN or snr_val > SNR_MAX:
                 continue
             pooled.append(spk)
 
@@ -245,6 +245,7 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
     common = {
         "method": method_name,
         "SNR_MIN": SNR_MIN,
+        "SNR_MAX": SNR_MAX,
         "FR_MIN_HZ": FR_MIN_HZ,
         "MIN_SPIKES_IN_BURST": MIN_SPIKES_IN_BURST,
         "MIN_BURST_DURATION": MIN_BURST_DURATION,
@@ -286,7 +287,7 @@ def run_tag_from_params(params: dict) -> str:
     m = params["method"]
     parts = [
         "combinedGPi" if COMBINE_NUMBERED_REGIONS else "separateGPi",
-        f"SNR={params['SNR_MIN']}",
+        f"SNR={params['SNR_MIN']}-{params['SNR_MAX']}",
         f"FR={params['FR_MIN_HZ']}Hz",
     ]
 
@@ -341,20 +342,20 @@ def figure_title_from_params(params: dict, patient: str, period: str) -> str:
 
     if m == "maxISI":
         detail = (
-            f"SNR\u2265{params['SNR_MIN']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
+            f"{params['SNR_MIN']}\u2264SNR\u2264{params['SNR_MAX']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
             f"thr={params['base_thr']}  IBI\u00d7{params['ibi_merge_factor']}  "
             f"spikes\u2265{params['MIN_SPIKES_IN_BURST']}  dur\u2265{params['MIN_BURST_DURATION']}ms"
         )
     elif m == "alpha_meanISI":
         detail = (
-            f"SNR\u2265{params['SNR_MIN']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
+            f"{params['SNR_MIN']}\u2264SNR\u2264{params['SNR_MAX']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
             f"\u03b1={params['alpha']}  thr=[{params['min_thr_ms']},{params['max_thr_ms']}]ms  "
             f"IBI\u00d7{params['ibi_merge_factor']}  "
             f"spikes\u2265{params['MIN_SPIKES_IN_BURST']}  dur\u2265{params['MIN_BURST_DURATION']}ms"
         )
     elif m == "rankSurprise":
         detail = (
-            f"SNR\u2265{params['SNR_MIN']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
+            f"{params['SNR_MIN']}\u2264SNR\u2264{params['SNR_MAX']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
             f"\u03b1c={params['RS_alpha_cluster']:.0%}  "
             f"\u03b1r={params['RS_alpha_region']:.0%}  "
             f"\u03b1n={params['RS_alpha_network']:.0%}  "

@@ -102,10 +102,11 @@ def run_single_dataset(
     # --------------------------------------------------
     bd = rs_burst_detection(
         spike_struct, spike_struct_L, spike_struct_R,
-        STATS, output_RS_burst_dir,
+        STATS, run_dir,
         iter_units_fn=iter_units_from_stats,
         infer_region_fn=infer_region,
         burst_in_window_fn=burst_in_window,
+        output_RS_burst_dir=output_RS_burst_dir,
     )
     all_bursts = bd.all_bursts
     all_bursts_L = bd.all_bursts_L
@@ -602,7 +603,7 @@ if __name__ == "__main__":
 
     RS_ALPHA_SETS = [
         # (stage1,  region,  network)
-        (0.05,    0.03,    0.02),
+        (0.08,    0.05,    0.03),
         (0.03,    0.02,    0.01),
     ]
 
