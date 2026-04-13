@@ -103,7 +103,7 @@ def add_region_coactivity_panel(fig: go.Figure, df_reg: pd.DataFrame,
                                 show_legend: bool = True):
     cols = [c for c in df_reg.columns if c not in ("Window_start_s", "Window_end_s")]
     for region in sorted(cols):
-        colr = REGION_COLORS.get(region, "rgb(30,30,200)")
+        colr = color_for_plot_group(str(region))
 
         _df = df_reg[pd.to_numeric(df_reg["Window_start_s"], errors="coerce").notna()].copy()
         _df["Window_start_s"] = _df["Window_start_s"].astype(float)
@@ -371,6 +371,7 @@ def make_sangerlab_presentation_figure(
     fr_df_L: pd.DataFrame | None = None,
     fr_df_R: pd.DataFrame | None = None,
     show_firing_rate: bool = True,
+    show_proxy_shaders: bool | None = None,
 ) -> go.Figure:
 
     show_emg = (
@@ -420,14 +421,38 @@ def make_sangerlab_presentation_figure(
 
     for side in sides:
         row_all = 0
-        last_region = None
         tickvals: list[float] = []
         ticktext: list[str] = []
+        depth_pairs: list[tuple[float, float]] = []  # (y_plot, depth_um)
         region_seen: set[str] = set()
         region_first_seen: list[str] = []
         colors = SIDE_COLORS[side["tag"]]
 
-        for ch in np.ravel(side["struct"]):
+        ch_list = list(np.ravel(side["struct"]))
+        # Sort units for raster display.
+        # - Default: globally by depth (mingled across shanks).
+        # - Optional: group by shank blocks, each sorted by depth (legacy look).
+        last_reg_for_labels = None
+        try:
+            if bool(KILOSORT_RASTER_GROUP_BY_SHANK):
+                ch_list.sort(
+                    key=lambda c: (
+                        infer_region(str(getattr(c, "electrode", ""))),
+                        infer_depth_um(str(getattr(c, "electrode", ""))) is None,
+                        infer_depth_um(str(getattr(c, "electrode", ""))) or 0.0,
+                    )
+                )
+            else:
+                ch_list.sort(
+                    key=lambda c: (
+                        infer_depth_um(str(getattr(c, "electrode", ""))) is None,
+                        infer_depth_um(str(getattr(c, "electrode", ""))) or 0.0,
+                    )
+                )
+        except Exception:
+            pass
+
+        for ch in ch_list:
             elec = str(ch.electrode)
             reg = infer_region(elec)
             for cl, arr in enumerate(np.ravel(ch.time)):
@@ -453,8 +478,22 @@ def make_sangerlab_presentation_figure(
                 y_plot = row_all * RASTER_ROW_SPACING
                 row_all += 1
                 tickvals.append(y_plot)
-                ticktext.append(reg if reg != last_region else "")
-                last_region = reg
+                d = infer_depth_um(elec)
+                if str(elec).startswith("rat_") and d is not None and np.isfinite(d):
+                    if bool(KILOSORT_RASTER_GROUP_BY_SHANK):
+                        # Shank-separated mode: label block boundaries only (Shank 0, Shank 1, ...)
+                        if reg != last_reg_for_labels:
+                            ticktext.append(display_region_name(reg))
+                            last_reg_for_labels = reg
+                        else:
+                            ticktext.append("")
+                    else:
+                        # Mingled mode: show depth scale ticks (not every row)
+                        depth_pairs.append((float(y_plot), float(d)))
+                        ticktext.append("")
+                else:
+                    ticktext.append(display_region_name(reg) if (bool(KILOSORT_RASTER_GROUP_BY_SHANK) and reg != last_reg_for_labels) else "")
+                    last_reg_for_labels = reg if bool(KILOSORT_RASTER_GROUP_BY_SHANK) else last_reg_for_labels
 
                 add_raster_row(
                     fig, spk, y_plot, elec, int(cl), bursts_for_unit,
@@ -465,6 +504,23 @@ def make_sangerlab_presentation_figure(
 
         y_max = row_all * RASTER_ROW_SPACING
         y_min = -(8.0 * RASTER_ROW_SPACING)
+
+        # Build readable y ticks. For mingled Kilosort plots we show a depth scale (µm) at regular intervals.
+        if depth_pairs and (not bool(KILOSORT_RASTER_GROUP_BY_SHANK)):
+            depth_pairs.sort(key=lambda t: t[1])
+            depths = np.array([d for (_, d) in depth_pairs], dtype=float)
+            yrows = np.array([y for (y, _) in depth_pairs], dtype=float)
+            lo = float(np.nanmin(depths))
+            hi = float(np.nanmax(depths))
+            step = float(getattr(__import__("config"), "KILOSORT_DEPTH_TICK_UM", 200.0))
+            step = 200.0 if not np.isfinite(step) or step <= 0 else step
+            tick_depths = np.arange(np.floor(lo / step) * step, hi + step, step)
+            tickvals = []
+            ticktext = []
+            for td in tick_depths:
+                idx = int(np.argmin(np.abs(depths - td)))
+                tickvals.append(float(yrows[idx]))
+                ticktext.append(f"{td:.0f} µm")
 
         fig.update_yaxes(
             title_text=side["label"], tickvals=tickvals, ticktext=ticktext,
@@ -531,7 +587,6 @@ def make_sangerlab_presentation_figure(
             plot_region_bars_from_precomputed(
                 fig, row=side["row"], col=1,
                 region_bars_by_region=side["reg_bars"],
-                region_colors=REGION_COLORS,
                 region_order=list(reversed(region_orders[side["tag"]])),
                 y_top_start=(y_top - 2.5 * bar_height),
                 bar_height=bar_height / 2,
@@ -542,6 +597,9 @@ def make_sangerlab_presentation_figure(
     # ---- EMG/proxy panels (rows 3,4; before FR when both shown) ----
     emg_labels = emg_panel_labels if emg_panel_labels is not None else ("Summed EMG (L)", "Summed EMG (R)")
     if show_emg:
+        if show_proxy_shaders is None:
+            # Default to config toggle for backward compatibility.
+            show_proxy_shaders = bool(SHOW_PROXY_SHADERS)
         for i, side in enumerate(sides):
             emg_row = 3 + i
 
@@ -554,12 +612,14 @@ def make_sangerlab_presentation_figure(
             )
 
             y0, y1 = (emg_y_range if emg_y_range is not None else _emg_y_range(side["emg_traces"]))
-            for bars, color_key in [(net_bars_L, "L"), (net_bars_R, "R")]:
+            if show_proxy_shaders:
+                # Shade only the matching hemisphere's network bars on each panel.
+                bars = net_bars_L if side["tag"] == "L" else net_bars_R
                 if bars:
                     add_emg_shaders_from_windows(
                         fig, bars, row=emg_row, col=1,
                         y0=y0, y1=y1,
-                        color=SIDE_COLORS[color_key]["emg_shader"],
+                        color=SIDE_COLORS[side["tag"]]["emg_shader"],
                         opacity=1, layer="below", time_unit="s",
                     )
 
@@ -694,7 +754,6 @@ def add_burst_bars_top_SIMPLE(
 def plot_region_bars_from_precomputed(
     fig, *, row: int, col: int,
     region_bars_by_region: dict[str, list[tuple[float, float]]],
-    region_colors: dict,
     region_order: list[str],
     y_top_start: float,
     bar_height: float,
@@ -702,7 +761,7 @@ def plot_region_bars_from_precomputed(
     opacity: float = 0.9,
     line_width: float = 1.0,
 ):
-    """Plot region bars using pre-computed bars from detection."""
+    """Plot region (or shank) bars using pre-computed windows; colors from ``color_for_plot_group``."""
     y_top = float(y_top_start)
 
     for reg in region_order:
@@ -714,7 +773,7 @@ def plot_region_bars_from_precomputed(
             fig, bars_s,
             row=row, col=col,
             y_top=y_top, bar_height=bar_height,
-            color=region_colors.get(reg, "blue"),
+            color=color_for_plot_group(str(reg)),
             opacity=opacity, line_width=line_width,
         )
 
@@ -755,7 +814,7 @@ def plot_region_bars_simple(
             fig, windows_s,
             row=row, col=col,
             y_top=y_top, bar_height=bar_height,
-            color=region_colors.get(reg, "blue"),
+            color=color_for_plot_group(str(reg)),
             opacity=0.95, line_width=line_width,
         )
 

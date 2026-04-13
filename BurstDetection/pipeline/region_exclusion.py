@@ -26,6 +26,7 @@ from config import (
     RS_Percentile_Limit_network,
     RS_alpha_network,
 )
+from pipeline.burst_paths import burst_network_csv_path, burst_region_csv_path, burst_unit_csv_path
 from pipeline.detection import RS_detect_burst, compute_spans_and_bars
 from pipeline.utils import infer_region
 
@@ -67,8 +68,7 @@ def load_gt_and_bursts(
     """
     Load ground-truth network spans and the burst lists used for network detection.
 
-    run_dir: directory containing unit_bursts_RS_*.csv, region_bursts_RS_*.csv,
-             network_bursts_RS_*.csv (same path passed to rs_burst_detection).
+    run_dir: directory containing ``burst_timings/unit_bursts_L.csv`` (etc.).
 
     Returns:
         gt_spans_left, gt_spans_right: list of (span_start_ms, span_end_ms)
@@ -80,10 +80,10 @@ def load_gt_and_bursts(
 
     def _load_gt(side: str) -> list[tuple[float, float]]:
         """
-        Load GT network spans for one side from network_bursts_RS_{side}.csv.
+        Load GT network spans for one side from ``burst_timings/network_bursts_L.csv`` (or R).
         Supports both legacy span_* schema and newer burst_* schema.
         """
-        path = run_dir / f"network_bursts_RS_{side}.csv"
+        path = burst_network_csv_path(run_dir, side)
         df = _load_csv_safe(path, required=True)
         if df is None or len(df) == 0:
             return []
@@ -111,12 +111,12 @@ def load_gt_and_bursts(
         return []
 
     def _load_unit_bursts(side: str) -> pd.DataFrame:
-        path = run_dir / f"unit_bursts_RS_{side}.csv"
+        path = burst_unit_csv_path(run_dir, side)
         df = _load_csv_safe(path, required=True)
         return df
 
     def _load_region_windows(side: str) -> dict[str, list[tuple[float, float]]]:
-        path = run_dir / f"region_bursts_RS_{side}.csv"
+        path = burst_region_csv_path(run_dir, side)
         df = _load_csv_safe(path, required=False)
         if df is None or len(df) == 0:
             return {}
@@ -180,7 +180,7 @@ def load_gt_spans(run_dir: Path) -> tuple[list[tuple[float, float]], list[tuple[
     gt_left, gt_right = [], []
 
     for side, out in [("left", gt_left), ("right", gt_right)]:
-        path = run_dir / f"network_bursts_RS_{side}.csv"
+        path = burst_network_csv_path(run_dir, side)
         if not path.exists():
             continue
         try:
@@ -216,7 +216,7 @@ def load_gt_onset_starts(run_dir: Path) -> tuple[list[float], list[float]]:
     left_starts, right_starts = [], []
 
     for side, out in [("left", left_starts), ("right", right_starts)]:
-        path = run_dir / f"network_bursts_RS_{side}.csv"
+        path = burst_network_csv_path(run_dir, side)
         if not path.exists():
             continue
         try:
@@ -546,12 +546,6 @@ def run_region_exclusion_study(
     out_dir = run_dir / out_subdir
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Unit burst CSVs are copied; region_bursts are filtered per permutation
-    unit_copy_filenames = [
-        "unit_bursts_RS_left.csv",
-        "unit_bursts_RS_right.csv",
-    ]
-
     for K in range(1, K_max + 1):
         for excluded in combinations(regions, K):
             excluded_set = set(excluded)
@@ -564,19 +558,19 @@ def run_region_exclusion_study(
             perm_dir.mkdir(parents=True, exist_ok=True)
 
             # Copy unit burst CSVs (unchanged across permutations)
-            for fname in unit_copy_filenames:
-                src = run_dir / fname
+            for side in ("left", "right"):
+                src = burst_unit_csv_path(run_dir, side)
                 if src.exists():
-                    shutil.copy2(src, perm_dir / fname)
+                    shutil.copy2(src, perm_dir / src.name)
 
             # Write region_bursts filtered to included regions only (per side)
             for side in ("left", "right"):
-                path = run_dir / f"region_bursts_RS_{side}.csv"
+                path = burst_region_csv_path(run_dir, side)
                 if path.exists():
                     df_reg = pd.read_csv(path)
                     if "Region" in df_reg.columns:
                         df_reg = df_reg[df_reg["Region"].astype(str).isin(included_set)]
-                    df_reg.to_csv(perm_dir / f"region_bursts_RS_{side}.csv", index=False)
+                    df_reg.to_csv(perm_dir / path.name, index=False)
 
             for side, gt_spans, gt_onset_starts, bursts in [
                 ("left", gt_left, gt_onset_left, bursts_left),
@@ -584,7 +578,7 @@ def run_region_exclusion_study(
             ]:
                 network_rows, pred_spans, _ = run_network_with_excluded_regions(bursts, excluded_set)
                 pd.DataFrame(network_rows).to_csv(
-                    perm_dir / f"network_bursts_RS_{side}.csv", index=False
+                    perm_dir / burst_network_csv_path(run_dir, side).name, index=False
                 )
                 mean_iou, n_gt_matched, n_pred_matched = mean_iou_vs_gt(gt_spans, pred_spans)
                 pred_onset_starts = [r["onset_start_ms"] for r in network_rows]

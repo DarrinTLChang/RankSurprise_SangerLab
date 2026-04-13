@@ -20,7 +20,7 @@ HOW TO CALL
   python compare_proxy_vs_network.py --loop --run-tag "separateGPi__..." "another_tag"
 
 Paths and run_tags are defined at the top of this file (edit like config.py).
-Output (--loop) under .../outputs_fast_proxy/patient/PeriodN/rankSurprise/run_tag/:
+Output (--loop) under .../outputs_fast_proxy/patient/PeriodN/run_tag/:
   - hemi_proxy to hemi_burst: proxy_vs_network_results_left.csv, proxy_vs_network_results_right.csv
   - region_proxy_to_hemi_burst/results_left.csv, results_right.csv (one row per region)
   - region_proxy_to_region_burst/results_left.csv, results_right.csv (one row per region)
@@ -28,7 +28,7 @@ Output (--loop) under .../outputs_fast_proxy/patient/PeriodN/rankSurprise/run_ta
 Two correlation metrics when --fixed-onset-window-ms > 0:
   - Duration-based: written to --out-dir (e.g. outputs_fast_proxy); mask = [burst_start, burst_end].
   - Onset-fixed: written to a separate folder with duration in the name, e.g. outputs_fast_proxy_onset_fixed_300ms
-    (same patient/PeriodN/rankSurprise/run_tag layout; mask = [onset, onset+fixed_window_ms]).
+    (same patient/PeriodN/run_tag layout; mask = [onset, onset+fixed_window_ms]).
 """
 
 from __future__ import annotations
@@ -39,12 +39,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+# New output layout config
+from config import BURST_ROOT, PROXY_ANALYSIS_ROOT
+from pipeline.burst_paths import BURST_TIMINGS_SUBDIR, burst_network_csv_path, burst_region_csv_path
+
 # ============================================================
 # PATHS  (edit these like the dataset list in config.py)
 # ============================================================
 DEFAULT_PROXY_ROOT = Path("/Volumes/D_Drive/rasters_all_with_fast_proxies(neo)")
-DEFAULT_RS_BURST_ROOT = Path("/Volumes/D_Drive/SangerLabBursts/outputs_RS_burst")
-DEFAULT_OUT_FAST_PROXY = Path("/Volumes/D_Drive/SangerLabBursts/outputs_fast_proxy")
+DEFAULT_RS_BURST_ROOT = Path(BURST_ROOT)
+DEFAULT_OUT_FAST_PROXY = Path(PROXY_ANALYSIS_ROOT) / "outputs_fast_proxy"
 
 # outputs_RS_burst_2: same layout but min burst dur = 0ms; rankSurprise has separateGPi__... and SNR=1.2__... (we use only separateGPi)
 RS_BURST_2_ROOT = Path("/Volumes/D_Drive/SangerLabBursts/outputs_RS_burst_2")
@@ -72,37 +76,110 @@ RUN_TAGS = [
 ]
 
 
+def load_bilateral_proxy_csv(
+    path: Path,
+    *,
+    time_col: str,
+    left_col: str,
+    right_col: str,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Load a single CSV with time (seconds) and separate columns for left- and right-hemisphere proxy.
+    Returns (t_s, y_left, y_right) as aligned float arrays.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(path)
+    if path.suffix.lower() != ".csv":
+        raise ValueError(f"Expected a .csv file, got: {path}")
+
+    df = pd.read_csv(path)
+    for c in (time_col, left_col, right_col):
+        if c not in df.columns:
+            raise ValueError(
+                f"Missing column {c!r} in {path}. Available columns: {list(df.columns)}"
+            )
+
+    t_s = pd.to_numeric(df[time_col], errors="coerce").to_numpy(dtype=float)
+    y_l = pd.to_numeric(df[left_col], errors="coerce").to_numpy(dtype=float)
+    y_r = pd.to_numeric(df[right_col], errors="coerce").to_numpy(dtype=float)
+
+    n = t_s.shape[0]
+    if y_l.shape[0] != n or y_r.shape[0] != n:
+        raise ValueError(
+            f"Length mismatch in {path}: time={n}, {left_col}={y_l.shape[0]}, {right_col}={y_r.shape[0]}"
+        )
+
+    return t_s, y_l, y_r
+
+
 def load_hemi_proxy_from_excel(path: Path, sheet_name: str = "proxies") -> tuple[np.ndarray, np.ndarray, str]:
     """
     Load time axis (ms) and a hemispheric proxy column from the given Excel file.
     Returns (t_ms, hemi_proxy, hemi_col_name).
     """
+    return load_hemi_proxy_from_table(
+        path,
+        sheet_name=sheet_name,
+        time_col="t_center_s",
+        hemi_col="hemi_proxy",
+    )
+
+
+def _read_proxy_table(path: Path, sheet_name: str = "proxies") -> pd.DataFrame:
+    """
+    Read a proxy table from .xlsx (sheet) or .csv.
+    """
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(path)
 
-    df = pd.read_excel(path, sheet_name=sheet_name)
+    suffix = path.suffix.lower()
+    if suffix in (".xlsx", ".xls"):
+        return pd.read_excel(path, sheet_name=sheet_name)
+    if suffix == ".csv":
+        return pd.read_csv(path)
+    raise ValueError(f"Unsupported proxy file type: {path} (expected .csv or .xlsx)")
 
-    # Time column: t_center_s (seconds) → convert to ms
-    if "t_center_s" not in df.columns:
+
+def load_hemi_proxy_from_table(
+    path: Path,
+    *,
+    sheet_name: str = "proxies",
+    time_col: str = "t_center_s",
+    hemi_col: str = "hemi_proxy",
+) -> tuple[np.ndarray, np.ndarray, str]:
+    """
+    Load (t_ms, hemi_proxy, hemi_col_name) from either:
+    - Excel (.xlsx/.xls): reads `sheet_name`
+    - CSV (.csv): reads the whole file
+
+    `time_col` is in seconds; it is converted to ms.
+    """
+    path = Path(path)
+    df = _read_proxy_table(path, sheet_name=sheet_name)
+
+    # Friendly fallback for CSVs that use time_s instead of t_center_s
+    if time_col not in df.columns and time_col == "t_center_s" and "time_s" in df.columns:
+        time_col = "time_s"
+
+    if time_col not in df.columns:
         raise ValueError(
-            f"Could not find time column 't_center_s' in {path}. "
+            f"Could not find time column '{time_col}' in {path}. "
             f"Available columns: {list(df.columns)}"
         )
-    t_ms = (df["t_center_s"].astype(float) * 1000.0).to_numpy()
+    t_ms = (pd.to_numeric(df[time_col], errors="coerce").astype(float) * 1000.0).to_numpy()
 
-    # Hemi proxy column
-    if "hemi_proxy" not in df.columns:
+    if hemi_col not in df.columns:
         raise ValueError(
-            f"Could not find column 'hemi_proxy' in {path}. "
+            f"Could not find proxy column '{hemi_col}' in {path}. "
             f"Available columns: {list(df.columns)}"
         )
-    hemi_col = "hemi_proxy"
-    hemi_proxy = df[hemi_col].to_numpy(dtype=float)
+    hemi_proxy = pd.to_numeric(df[hemi_col], errors="coerce").to_numpy(dtype=float)
 
     if t_ms.shape[0] != hemi_proxy.shape[0]:
         raise ValueError(
-            f"Time axis and hemi proxy length mismatch in {path}: "
+            f"Time axis and proxy length mismatch in {path}: "
             f"{t_ms.shape[0]} vs {hemi_proxy.shape[0]}"
         )
 
@@ -118,18 +195,23 @@ def load_proxy_excel_with_region_columns(
     without the "proxy_" prefix (e.g. "GPi1", "VOSTN").
     """
     path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(path)
-    df = pd.read_excel(path, sheet_name=sheet_name)
-    if "t_center_s" not in df.columns:
-        raise ValueError(f"Missing t_center_s in {path}. Columns: {list(df.columns)}")
-    t_ms = (df["t_center_s"].astype(float) * 1000.0).to_numpy()
-    hemi_proxy = df["hemi_proxy"].to_numpy(dtype=float) if "hemi_proxy" in df.columns else np.full_like(t_ms, np.nan)
+    df = _read_proxy_table(path, sheet_name=sheet_name)
+    time_col = "t_center_s"
+    if time_col not in df.columns and "time_s" in df.columns:
+        time_col = "time_s"
+    if time_col not in df.columns:
+        raise ValueError(f"Missing {time_col} in {path}. Columns: {list(df.columns)}")
+    t_ms = (pd.to_numeric(df[time_col], errors="coerce").astype(float) * 1000.0).to_numpy()
+    hemi_proxy = (
+        pd.to_numeric(df["hemi_proxy"], errors="coerce").to_numpy(dtype=float)
+        if "hemi_proxy" in df.columns
+        else np.full_like(t_ms, np.nan)
+    )
     region_proxies: dict[str, np.ndarray] = {}
     for col in df.columns:
         if col.startswith("proxy_") and col != "proxy_":
             region_name = col[len("proxy_"):].strip()
-            region_proxies[region_name] = df[col].to_numpy(dtype=float)
+            region_proxies[region_name] = pd.to_numeric(df[col], errors="coerce").to_numpy(dtype=float)
     return t_ms, hemi_proxy, region_proxies
 
 
@@ -142,25 +224,26 @@ def load_all_proxy_columns(
     Returns (t_ms, channels) where channels[channel_name] is the time series.
     """
     path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(path)
-    df = pd.read_excel(path, sheet_name=sheet_name)
-    if "t_center_s" not in df.columns:
-        raise ValueError(f"Missing t_center_s in {path}. Columns: {list(df.columns)}")
-    t_ms = (df["t_center_s"].astype(float) * 1000.0).to_numpy()
+    df = _read_proxy_table(path, sheet_name=sheet_name)
+    time_col = "t_center_s"
+    if time_col not in df.columns and "time_s" in df.columns:
+        time_col = "time_s"
+    if time_col not in df.columns:
+        raise ValueError(f"Missing {time_col} in {path}. Columns: {list(df.columns)}")
+    t_ms = (pd.to_numeric(df[time_col], errors="coerce").astype(float) * 1000.0).to_numpy()
     channels: dict[str, np.ndarray] = {}
     if "hemi_proxy" in df.columns:
-        channels["hemi"] = df["hemi_proxy"].to_numpy(dtype=float)
+        channels["hemi"] = pd.to_numeric(df["hemi_proxy"], errors="coerce").to_numpy(dtype=float)
     for col in df.columns:
         if col.startswith("proxy_") and col != "proxy_":
             name = col[len("proxy_"):].strip()
-            channels[name] = df[col].to_numpy(dtype=float)
+            channels[name] = pd.to_numeric(df[col], errors="coerce").to_numpy(dtype=float)
     return t_ms, channels
 
 
 def load_region_bursts_by_region(csv_path: Path) -> dict[str, list[tuple[float, float]]]:
     """
-    Load region_bursts_RS_{side}.csv; return dict region -> list of (start_ms, end_ms).
+    Load ``burst_timings/region_bursts_L.csv`` (or R); return dict region -> list of (start_ms, end_ms).
     Uses burst_start_ms, burst_end_ms when present; else onset/span columns.
     """
     csv_path = Path(csv_path)
@@ -198,7 +281,7 @@ def load_region_bursts_by_region(csv_path: Path) -> dict[str, list[tuple[float, 
 
 def load_network_bursts(path: Path) -> tuple[np.ndarray, np.ndarray]:
     """
-    Load network burst start/end times (ms) from an RS network_bursts_RS_*.csv.
+    Load network burst start/end times (ms) from ``burst_timings/network_bursts_L.csv`` (or R, or combined ``network_LR.csv``).
     Supports both schemas:
     - burst_start_ms, burst_end_ms (new)
     - onset_start_ms with onset_end_ms or span_duration_ms (legacy / copied runs)
@@ -458,7 +541,7 @@ def run_comparison_region_proxy_vs_region_burst(
 def find_run_dirs_with_network_bursts(rs_burst_root: Path) -> list[tuple[Path, str, str, str]]:
     """
     Discover (run_dir, patient, period_label, run_tag) under rs_burst_root where
-    network_bursts_RS_left.csv or network_bursts_RS_right.csv exists.
+    ``burst_timings/network_bursts_L.csv`` or ``..._R.csv`` exists.
     period_label is e.g. "Period2"; patient is e.g. "s508"; run_tag is the run_dir name.
     """
     rs_burst_root = Path(rs_burst_root).resolve()
@@ -466,13 +549,15 @@ def find_run_dirs_with_network_bursts(rs_burst_root: Path) -> list[tuple[Path, s
         return []
     seen: set[tuple[str, str, str]] = set()
     result: list[tuple[Path, str, str, str]] = []
-    for csv_name in ("network_bursts_RS_left.csv", "network_bursts_RS_right.csv"):
+    for csv_name in ("network_bursts_L.csv", "network_bursts_R.csv"):
         for f in rs_burst_root.rglob(csv_name):
-            run_dir = f.parent
-            # run_dir = .../patient/PeriodN/rankSurprise/run_tag (need 4 levels under root)
+            if f.parent.name != BURST_TIMINGS_SUBDIR:
+                continue
+            run_dir = f.parent.parent
+            # New layout: run_dir = .../patient/PeriodN/run_tag (need 3 levels under root)
             try:
-                patient = run_dir.parent.parent.parent.name
-                period_label = run_dir.parent.parent.name  # Period1, Period2, ...
+                patient = run_dir.parent.parent.name
+                period_label = run_dir.parent.name  # Period1, Period2, ...
             except IndexError:
                 continue
             run_tag = run_dir.name
@@ -527,7 +612,7 @@ def main() -> None:
         "--network-csv",
         type=Path,
         default=None,
-        help="Path to network_bursts_RS_left/right.csv (single-run mode; required if not --loop).",
+        help="Path to burst_timings/network_bursts_L.csv (or R) (single-run mode; required if not --loop).",
     )
     parser.add_argument(
         "--loop",
@@ -544,7 +629,7 @@ def main() -> None:
         "--rs-burst-root",
         type=Path,
         default=DEFAULT_RS_BURST_ROOT,
-        help=f"Root for outputs_RS_burst/patient/PeriodN/... (default: {DEFAULT_RS_BURST_ROOT}).",
+        help=f"Root for burst runs under new layout: patient/PeriodN/run_tag (default: {DEFAULT_RS_BURST_ROOT}).",
     )
     parser.add_argument(
         "--run-tag",
@@ -558,7 +643,7 @@ def main() -> None:
         "--out-dir",
         type=Path,
         default=DEFAULT_OUT_FAST_PROXY,
-        help=f"Root for outputs_fast_proxy/patient/PeriodN/rankSurprise/run_tag/ (default: {DEFAULT_OUT_FAST_PROXY}).",
+        help=f"Root for outputs_fast_proxy/patient/PeriodN/run_tag/ (default: {DEFAULT_OUT_FAST_PROXY}).",
     )
     parser.add_argument(
         "--sheet",
@@ -610,12 +695,12 @@ def main() -> None:
         print(f"Output directory: {out_dir}")
         n_written = 0
         for run_dir, patient, period_label, run_tag in run_dirs:
-            base_out = out_dir / patient / period_label / "rankSurprise" / run_tag
-            base_out_onset = (out_dir_onset / patient / period_label / "rankSurprise" / run_tag) if out_dir_onset is not None else None
+            base_out = out_dir / patient / period_label / run_tag
+            base_out_onset = (out_dir_onset / patient / period_label / run_tag) if out_dir_onset is not None else None
             any_written_this_run = False
             for side in ("left", "right"):
-                network_csv = run_dir / f"network_bursts_RS_{side}.csv"
-                region_bursts_csv = run_dir / f"region_bursts_RS_{side}.csv"
+                network_csv = burst_network_csv_path(run_dir, side)
+                region_bursts_csv = burst_region_csv_path(run_dir, side)
                 if not network_csv.exists():
                     continue
                 proxy_xlsx = derive_proxy_xlsx_path(args.proxy_root, patient, period_label, side)

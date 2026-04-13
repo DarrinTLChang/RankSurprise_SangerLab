@@ -30,6 +30,7 @@ from scipy import stats as sp_stats
 from scipy.ndimage import uniform_filter1d
 
 from config import PROXY_ROOT, BURST_ROOT, PROXY_ANALYSIS_ROOT, PROXY_ANALYSIS_RUN_TAG, SpikeTime_Mat_File
+from pipeline.burst_paths import burst_network_csv_path, burst_region_csv_path
 from pipeline.utils import dataset_labels
 from compare_proxy_vs_network import (
     load_hemi_proxy_from_excel,
@@ -70,11 +71,13 @@ def _discover_patient_periods(burst_root: Path, run_tag: str,
             period = period_dir.name
             if allowed is not None and (patient, period.replace(" ", "")) not in allowed:
                 continue
-            tag_dir = period_dir / "rankSurprise" / run_tag
+            # New layout: burst_root already points at the method root (e.g. F:\SangerLabBursts_RS),
+            # so runs live at patient/PeriodN/run_tag (no extra /rankSurprise/ layer).
+            tag_dir = period_dir / run_tag
             if not tag_dir.is_dir():
                 continue
-            csv_L = tag_dir / "network_bursts_RS_left.csv"
-            csv_R = tag_dir / "network_bursts_RS_right.csv"
+            csv_L = burst_network_csv_path(tag_dir, "left")
+            csv_R = burst_network_csv_path(tag_dir, "right")
             if csv_L.exists() or csv_R.exists():
                 results.append((patient, period, csv_L, csv_R))
     return results
@@ -375,8 +378,8 @@ def _run_hemi_to_region(discoveries, proxy_root, pre_pad, post_pad, out_dir,
     """Hemisphere proxy vs region bursts — one analysis per region."""
     for patient, period, csv_L, csv_R in discoveries:
         tag_dir = csv_L.parent
-        region_csv_L = tag_dir / "region_bursts_RS_left.csv"
-        region_csv_R = tag_dir / "region_bursts_RS_right.csv"
+        region_csv_L = burst_region_csv_path(tag_dir, "left")
+        region_csv_R = burst_region_csv_path(tag_dir, "right")
 
         for side, region_csv in [("left", region_csv_L), ("right", region_csv_R)]:
             by_region = load_region_bursts_by_region(region_csv)

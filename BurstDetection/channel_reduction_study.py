@@ -30,6 +30,7 @@ from config import (
     RS_Percentile_Limit_region,
     RS_alpha_region,
 )
+from pipeline.burst_paths import BURST_TIMINGS_SUBDIR, burst_network_csv_path, burst_region_csv_path, burst_unit_csv_path
 from pipeline.detection import RS_detect_burst, compute_spans_and_bars
 from pipeline.utils import infer_region, compute_recording_duration_s, split_spike_struct_by_side
 
@@ -204,11 +205,11 @@ def _load_region_bursts_by_region(csv_path: Path) -> dict[str, list[tuple[float,
 
 def _load_network_burst_windows(run_dir: Path, side: str) -> list[tuple[float, float]]:
     """
-    Load network burst windows (start_ms, end_ms) from network_bursts_RS_{side}.csv.
+    Load network burst windows (start_ms, end_ms) from ``burst_timings/network_bursts_L.csv`` (or R).
     Norm (new schema): interval = [burst_start_ms, burst_end_ms] when present.
     For backward compatibility, falls back to onset_* / span_* columns.
     """
-    path = run_dir / f"network_bursts_RS_{side}.csv"
+    path = burst_network_csv_path(run_dir, side)
     if not path.exists():
         return []
     try:
@@ -373,8 +374,8 @@ def run_study_for_run_dir(
     patient = parent.parent.parent.name if parent and parent.parent and parent.parent.parent else ""
 
     for side in ("left", "right"):
-        unit_path = run_dir / f"unit_bursts_RS_{side}.csv"
-        region_path = run_dir / f"region_bursts_RS_{side}.csv"
+        unit_path = burst_unit_csv_path(run_dir, side)
+        region_path = burst_region_csv_path(run_dir, side)
         unit_bursts = _load_unit_bursts(unit_path)
         full_by_region = _load_region_bursts_by_region(region_path)
         network_windows = _load_network_burst_windows(run_dir, side)
@@ -466,8 +467,10 @@ def run_study_for_run_dir(
 def _infer_rs_burst_root_from_region_exclusion_root(root: Path) -> Path:
     """
     Infer RS burst output root from region-exclusion root (same layout as main.py).
-    Burst CSVs (unit_bursts_RS_*.csv, etc.) live under outputs_RS_burst_onset_length,
-    not under outputs_region_exclusion*. Use the inferred path for finding run dirs.
+    NOTE (new layout): region exclusion results now live under each run_dir as
+    run_dir/region_exclusion_study/..., and burst CSVs live directly in run_dir.
+    This helper is kept only for legacy paths; for new runs you can just pass
+    the method root (e.g. F:\\SangerLabBursts_RS) to --root.
     """
     root = Path(root).resolve()
     name = root.name
@@ -479,13 +482,14 @@ def _infer_rs_burst_root_from_region_exclusion_root(root: Path) -> Path:
 
 
 def find_run_dirs(root: Path) -> list[Path]:
-    """Find all run dirs under root that contain unit_bursts_RS_left.csv (or right)."""
+    """Find all run dirs under root that contain ``burst_timings/unit_bursts_L.csv``."""
     root = Path(root).resolve()
     if not root.is_dir():
         return []
     run_dirs = []
-    for f in root.rglob("unit_bursts_RS_left.csv"):
-        run_dirs.append(f.parent)
+    for f in root.rglob("unit_bursts_L.csv"):
+        if f.parent.name == BURST_TIMINGS_SUBDIR:
+            run_dirs.append(f.parent.parent)
     return sorted(set(run_dirs))
 
 
@@ -497,13 +501,13 @@ def main() -> None:
         "--run-dir",
         type=Path,
         default=None,
-        help="Single run directory (e.g. outputs_RS_burst_onset_length/patient/period/method/run_tag).",
+        help="Single run directory (new layout: <METHOD_ROOT>/patient/PeriodN/run_tag).",
     )
     parser.add_argument(
         "--root",
         type=Path,
         default=None,
-        help="Root to scan for run dirs (e.g. outputs_RS_burst_onset_length or outputs_region_exclusion*; region_exclusion is auto-inferred to RS_burst tree). Used if --run-dir not set.",
+        help="Root to scan for run dirs (new layout: <METHOD_ROOT>, e.g. F:\\SangerLabBursts_RS). Used if --run-dir not set.",
     )
     parser.add_argument(
         "--out-dir",

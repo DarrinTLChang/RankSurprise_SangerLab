@@ -43,7 +43,9 @@ except ImportError:
 # ============================================================
 # PATHS  (edit these like the dataset list in config.py)
 # ============================================================
-DEFAULT_ROOT = Path("/Volumes/D_Drive/SangerLabBursts/outputs_fast_proxy")
+from config import PROXY_ANALYSIS_ROOT
+
+DEFAULT_ROOT = Path(PROXY_ANALYSIS_ROOT) / "outputs_fast_proxy"
 # Onset-fixed results (from compare_proxy_vs_network.py). With --plot-onset-fixed, plots all of these.
 BASE_D_Drive = Path("/Volumes/D_Drive/SangerLabBursts")
 ONSET_FIXED_ROOTS = [
@@ -114,7 +116,7 @@ def _load_region_proxy_results(
     rows = []
     pattern = f"{subdir}/results_*.csv"
     for path in root.rglob(pattern):
-        # Path layout: root/patient/PeriodN/rankSurprise/run_tag/subdir/results_side.csv
+        # Path layout: root/patient/PeriodN/run_tag/subdir/results_side.csv
         try:
             run_tag = path.parent.parent.name  # parent=subdir, parent.parent=run_tag
         except Exception:
@@ -426,7 +428,7 @@ def main() -> None:
         "--root",
         type=Path,
         default=DEFAULT_ROOT,
-        help=f"Root directory containing patient/PeriodN/rankSurprise/run_tag/ (default: {DEFAULT_ROOT})",
+        help=f"Root directory containing patient/PeriodN/run_tag/ (default: {DEFAULT_ROOT})",
     )
     parser.add_argument(
         "--run-tag",

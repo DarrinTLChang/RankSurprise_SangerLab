@@ -26,6 +26,8 @@ from operator import itemgetter
 from scipy.stats import norm
 from config import *
 
+from .burst_paths import burst_network_csv_path, burst_region_csv_path, burst_unit_csv_path
+
 
 # =====================================================================
 # maxISI / alpha-meanISI burst detection
@@ -322,14 +324,13 @@ def rs_burst_detection(
 ) -> BurstResults:
     """Run the full burst-detection pipeline (unit -> region -> network).
 
-    Burst CSVs (unit_bursts_RS_*, region_bursts_RS_*, network_bursts_RS_*) are
-    written only to run_dir. Call with run_dir=output_RS_burst_dir so the
-    canonical burst CSVs live under outputs_RS_burst (not under outputs/).
+    Burst CSVs are written under ``run_dir / burst_timings /`` with short names
+    (e.g. ``network_LR.csv``, ``network_bursts_L.csv``).
 
     Parameters
     ----------
     run_dir : Path
-        Directory to write burst CSVs (use output_RS_burst_dir from main).
+        Run output directory (e.g. main ``run_dir``).
     iter_units_fn : callable
         ``iter_units_from_stats(spike_struct, STATS)`` — yields (elec, cl, spk).
     infer_region_fn : callable
@@ -343,9 +344,9 @@ def rs_burst_detection(
         (spike_struct_R, "right"),
     ]
 
-    def _write_csv(df: pd.DataFrame, name: str) -> None:
-        run_dir.mkdir(parents=True, exist_ok=True)
-        df.to_csv(run_dir / name, index=False)
+    def _write_csv(df: pd.DataFrame, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(path, index=False)
 
     res = BurstResults()
 
@@ -409,7 +410,7 @@ def rs_burst_detection(
             }
             for b in unit_bursts
         ]
-        _write_csv(pd.DataFrame(unit_csv_rows), f"unit_bursts_RS_{side_tag}.csv")
+        _write_csv(pd.DataFrame(unit_csv_rows), burst_unit_csv_path(run_dir, side_tag))
 
         # Stage 1.5: region-level bursts
         region_windows_by_region: dict[str, list[tuple[float, float]]] = {}
@@ -499,7 +500,7 @@ def rs_burst_detection(
                 if flag:
                     all_bursts_region.append(b)
 
-            _write_csv(pd.DataFrame(region_bursts), f"region_bursts_RS_{side_tag}.csv")
+            _write_csv(pd.DataFrame(region_bursts), burst_region_csv_path(run_dir, side_tag))
 
             region_windows_rows = []
             for reg, wins in region_windows_by_region.items():
@@ -575,7 +576,7 @@ def rs_burst_detection(
             for b in all_bursts:
                 b["IsNetworkBurst"] = burst_in_window_fn(float(b["Start_ms"]), network_windows)
 
-            _write_csv(pd.DataFrame(network_bursts), f"network_bursts_RS_{side_tag}.csv")
+            _write_csv(pd.DataFrame(network_bursts), burst_network_csv_path(run_dir, side_tag))
 
             network_windows_rows = [{
                 "Start_ms": float(t0),

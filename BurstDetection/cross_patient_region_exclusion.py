@@ -31,6 +31,8 @@ try:
 except ImportError:
     HAS_PLOTLY = False
 
+from pipeline.burst_paths import burst_network_csv_path, network_burst_csv_basename
+
 try:
     from config import CROSS_PATIENT_EXCLUDE_PATIENTS
 except ImportError:
@@ -274,8 +276,8 @@ def enrich_pred_to_gt_from_onsets(
     """
     Compute Mean_onset_start_error_pred_to_gt_ms from existing network_bursts CSVs when
     the column is missing, so the full pipeline does not need to be re-run.
-    GT onsets: rs_burst_root/patient/period/method/run_tag/network_bursts_RS_{side}.csv
-    Pred onsets: root/patient/period/method/run_tag/{perm_folder}/network_bursts_RS_{side}.csv
+    GT onsets: rs_burst_root/patient/period/run_tag/burst_timings/network_bursts_L.csv (or R)
+    Pred onsets: root/patient/period/run_tag/{perm_folder}/network_bursts_L.csv
     """
     if mean_onset_start_error_pred_to_gt_ms is None:
         return df
@@ -311,18 +313,18 @@ def enrich_pred_to_gt_from_onsets(
         method = str(row["method"])
         run_tag = str(row["run_tag"])
         side = str(row["Side"]).strip().lower()
-        side_file = "left" if side == "left" else "right"  # file names: network_bursts_RS_left/right.csv
+        side_file = "left" if side == "left" else "right"
         regions = str(row["Regions_included"])
         perm_folder = _regions_included_to_perm_folder(regions)
         if not perm_folder:
             continue
         key_gt = (patient, period, method, run_tag, side_file)
         if key_gt not in gt_cache:
-            gt_path = rs / patient / period / method / run_tag / f"network_bursts_RS_{side_file}.csv"
+            gt_path = burst_network_csv_path(rs / patient / period / run_tag, side_file)
             gt_cache[key_gt] = load_onset_starts(gt_path)
         key_pred = (patient, period, method, run_tag, perm_folder, side_file)
         if key_pred not in pred_cache:
-            pred_path = root / patient / period / method / run_tag / perm_folder / f"network_bursts_RS_{side_file}.csv"
+            pred_path = root / patient / period / run_tag / perm_folder / network_burst_csv_basename(side_file)
             pred_cache[key_pred] = load_onset_starts(pred_path)
         gt_starts = gt_cache[key_gt]
         pred_starts = pred_cache[key_pred]
@@ -407,11 +409,11 @@ def enrich_matched_pairs_accuracy(
             continue
         key_gt = (patient, period, method, run_tag, side_file)
         if key_gt not in gt_cache:
-            gt_path = rs / patient / period / method / run_tag / f"network_bursts_RS_{side_file}.csv"
+            gt_path = burst_network_csv_path(rs / patient / period / run_tag, side_file)
             gt_cache[key_gt] = _load_network_bursts_spans_and_onsets(gt_path)
         key_pred = (patient, period, method, run_tag, perm_folder, side_file)
         if key_pred not in pred_cache:
-            pred_path = root / patient / period / method / run_tag / perm_folder / f"network_bursts_RS_{side_file}.csv"
+            pred_path = root / patient / period / run_tag / perm_folder / network_burst_csv_basename(side_file)
             pred_cache[key_pred] = _load_network_bursts_spans_and_onsets(pred_path)
         gt_spans, gt_onsets = gt_cache[key_gt]
         pred_spans, pred_onsets = pred_cache[key_pred]

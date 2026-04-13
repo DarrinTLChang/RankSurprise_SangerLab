@@ -30,6 +30,7 @@ from matplotlib.patches import Patch
 from scipy import stats as sp_stats
 
 from config import PROXY_ROOT, BURST_ROOT, PROXY_ANALYSIS_ROOT, PROXY_ANALYSIS_RUN_TAG, SpikeTime_Mat_File
+from pipeline.burst_paths import burst_network_csv_path, burst_region_csv_path
 from pipeline.utils import dataset_labels
 from compare_proxy_vs_network import (
     load_hemi_proxy_from_excel,
@@ -75,11 +76,13 @@ def _discover_patient_periods(burst_root: Path, run_tag: str,
             period = period_dir.name
             if allowed is not None and (patient, period.replace(" ", "")) not in allowed:
                 continue
-            tag_dir = period_dir / "rankSurprise" / run_tag
+            # New layout: burst_root already points at the method root (e.g. F:\SangerLabBursts_RS),
+            # so runs live at patient/PeriodN/run_tag (no extra /rankSurprise/ layer).
+            tag_dir = period_dir / run_tag
             if not tag_dir.is_dir():
                 continue
-            csv_L = tag_dir / "network_bursts_RS_left.csv"
-            csv_R = tag_dir / "network_bursts_RS_right.csv"
+            csv_L = burst_network_csv_path(tag_dir, "left")
+            csv_R = burst_network_csv_path(tag_dir, "right")
             if csv_L.exists() or csv_R.exists():
                 results.append((patient, period, csv_L, csv_R))
     return results
@@ -823,7 +826,7 @@ def _iter_proxy_burst_pairs(discoveries, proxy_root: Path, mode: str):
                     yield patient, period, side, region, t_ms, proxy_p, bursts_df
 
             elif mode == "hemi_to_region":
-                region_csv = tag_dir / f"region_bursts_RS_{side}.csv"
+                region_csv = burst_region_csv_path(tag_dir, side)
                 by_region = load_region_bursts_by_region(region_csv)
                 if not by_region:
                     continue
@@ -840,7 +843,7 @@ def _iter_proxy_burst_pairs(discoveries, proxy_root: Path, mode: str):
                     yield patient, period, side, region, t_ms, proxy_p, bursts_df
 
             else:  # region_to_region
-                region_csv = tag_dir / f"region_bursts_RS_{side}.csv"
+                region_csv = burst_region_csv_path(tag_dir, side)
                 by_region = load_region_bursts_by_region(region_csv)
                 if not by_region:
                     continue

@@ -14,6 +14,9 @@ from collections import defaultdict
 
 def display_region_name(region: str) -> str:
     """Map a raw region code to a presentation label (slashes, casing, etc.)."""
+    m = re.fullmatch(r"shank(\d+)", str(region), flags=re.IGNORECASE)
+    if m:
+        return f"Shank {m.group(1)}"
     return REGION_DISPLAY.get(region, region)
 
 
@@ -23,6 +26,29 @@ def dataset_labels(mat_path: str) -> tuple[str, str]:
     m = re.search(r"_p(\d+)", p.stem)
     period = f"Period {m.group(1)}" if m else "Period ?"
     return patient, period
+
+
+def dataset_labels_any(spec: str) -> tuple[str, str]:
+    """Like dataset_labels but supports ``kilosort:`` and ``kilosortset:`` entries (see kilosort_loader)."""
+    from .kilosort_loader import dataset_labels_kilosort, parse_dataset_spec
+
+    kind, path = parse_dataset_spec(spec)
+    if kind == "kilosort":
+        patient, period = dataset_labels_kilosort(path)
+        if KILOSORT_RASTER_GROUP_BY_SHANK:
+            patient = f"{patient}_separated"
+        return patient, period
+    if kind == "kilosortset":
+        first = path.split(";", 1)[0].strip()
+        patient, period = dataset_labels_kilosort(first)
+        # patient ≈ m360_shank0_imec0 → output folder m360_imec0 (session + probe)
+        parts = patient.split("_")
+        if len(parts) >= 3:
+            patient = f"{parts[0]}_{parts[-1]}"
+        if KILOSORT_RASTER_GROUP_BY_SHANK:
+            patient = f"{patient}_separated"
+        return patient, period
+    return dataset_labels(path)
 
 
 def compute_recording_duration_s(spike_struct) -> float:
@@ -48,9 +74,37 @@ def parse_electrode(elec: str, combine_numbered_regions: bool | None = None) -> 
     return {"base": base, "head": head, "side": side, "idx": idx, "region": region}
 
 
+def infer_shank(elec: str) -> str | None:
+    """Parse ``shankN`` from Kilosort-style names like ``rat_*_shank0_imec0_u12_L_0_...``."""
+    m = re.search(r"(shank\d+)", str(elec), re.IGNORECASE)
+    return m.group(1).lower() if m else None
+
+
+def infer_depth_um(elec: str) -> float | None:
+    """Parse depth tag from synthetic Kilosort names like ``..._d1234um_CommonFiltered``."""
+    m = re.search(r"_d(-?\d+)um", str(elec), re.IGNORECASE)
+    return float(m.group(1)) if m else None
+
+
 def infer_region(elec: str, combine_numbered_regions: bool | None = None) -> str:
-    """Return region for electrode. If combine_numbered_regions is None, uses config COMBINE_NUMBERED_REGIONS (True = GPi1+GPi2→GPi)."""
+    """Return region for electrode. If combine_numbered_regions is None, uses config COMBINE_NUMBERED_REGIONS (True = GPi1+GPi2→GPi).
+
+    When ``KILOSORT_COLOR_BY_SHANK`` and the name looks like ``rat_*_shankN_*``, returns ``shankN`` so plots match human region grouping.
+    """
+    if KILOSORT_COLOR_BY_SHANK and str(elec).startswith("rat_"):
+        sk = infer_shank(elec)
+        if sk is not None:
+            return sk
     return parse_electrode(elec, combine_numbered_regions=combine_numbered_regions)["region"]
+
+
+def color_for_plot_group(name: str) -> str:
+    """Line / bar color for a coactivity column or burst group (brain region or shank id)."""
+    if name in SHANK_COLORS:
+        return SHANK_COLORS[name]
+    if str(name).lower().startswith("shank") and str(name)[5:].isdigit():
+        return "rgb(140, 140, 160)"
+    return REGION_COLORS.get(name, "rgb(30,30,200)")
 
 
 def pretty_channel_label(elec: str, drop_side: bool) -> str:
@@ -67,6 +121,10 @@ def pretty_channel_label(elec: str, drop_side: bool) -> str:
 
 def color_for_nonburst(elec: str) -> str:
     region = infer_region(elec)
+    if region in SHANK_COLORS:
+        return SHANK_COLORS[region]
+    if str(region).lower().startswith("shank") and str(region)[5:].isdigit():
+        return "rgb(140, 140, 160)"
     for key, col in REGION_COLORS.items():
         if region.startswith(key):
             return col
@@ -286,11 +344,13 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
 def run_tag_from_params(params: dict) -> str:
     """Short, filesystem-safe directory name derived from run parameters."""
     m = params["method"]
-    parts = [
-        "combinedGPi" if COMBINE_NUMBERED_REGIONS else "separateGPi",
-        f"SNR={params['SNR_MIN']}-{params['SNR_MAX']}",
-        f"FR={params['FR_MIN_HZ']}Hz",
-    ]
+    # Keep tags compact and stable over time. Use underscores for small joins and
+    # double-underscores for major sections (easy to visually scan).
+    #
+    # Common suffix used by all methods (requested: keep SNR range + FR).
+    # Match desired folder naming: FR value without "Hz" suffix.
+    common_suffix = f"SNR={params['SNR_MIN']}-{params['SNR_MAX']}_FR={params['FR_MIN_HZ']}"
+    parts: list[str] = []
 
     if m == "maxISI":
         parts += [
@@ -298,6 +358,7 @@ def run_tag_from_params(params: dict) -> str:
             f"ibi={params['ibi_merge_factor']}",
             f"minSpk={params['MIN_SPIKES_IN_BURST']}",
             f"minDur={params['MIN_BURST_DURATION']}ms",
+            common_suffix,
         ]
         if params["pooling"]:
             parts.append("pooled")
@@ -308,32 +369,78 @@ def run_tag_from_params(params: dict) -> str:
             f"ibi={params['ibi_merge_factor']}",
             f"minSpk={params['MIN_SPIKES_IN_BURST']}",
             f"minDur={params['MIN_BURST_DURATION']}ms",
+            common_suffix,
         ]
         if params["pooling"]:
             parts.append("pooled")
     elif m == "rankSurprise":
-        ac = params['RS_alpha_cluster']
-        ar = params['RS_alpha_region']
-        an = params['RS_alpha_network']
-        parts += [
-            f"aClust={ac:.0%}",
-            f"limClust={params['RS_limit_cluster']}",
-            f"aReg={ar:.0%}",
-            f"limReg={params['RS_limit_region']}",
-            f"aNet={an:.0%}",
-            f"limNet={params['RS_limit_network']}",
-            f"minSpk={params['MIN_SPIKES_IN_BURST']}",
-            f"minDur={params['MIN_BURST_DURATION']}ms",
-            f"minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}",
-        ]
+        ac = float(params["RS_alpha_cluster"])
+        ar = float(params["RS_alpha_region"])
+        an = float(params["RS_alpha_network"])
+        a_pct = (int(round(100 * ac)), int(round(100 * ar)), int(round(100 * an)))
+        lims = (int(params["RS_limit_cluster"]), int(params["RS_limit_region"]), int(params["RS_limit_network"]))
+
+        head = f"RS=({a_pct[0]},{a_pct[1]},{a_pct[2]})_({lims[0]},{lims[1]},{lims[2]})"
+        mins = (
+            f"minSpk={params['MIN_SPIKES_IN_BURST']}"
+            f"__minDur={params['MIN_BURST_DURATION']}ms"
+            f"__minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}"
+        )
+        # Preferred style: ..._SNR=..._FR=..._region__network
+        toggles = ""
+        if params.get("region_burst"):
+            toggles += "_region"
+        if params.get("network_burst"):
+            toggles += "__network" if toggles else "network"
+        tag = f"{head}_{mins}_{common_suffix}{toggles}"
+        parts += [tag]
         if params["pooling"]:
             parts.append("pooled")
-        if params["region_burst"]:
-            parts.append("region")
-        if params["network_burst"]:
-            parts.append("network")
 
+    # For RS we intentionally keep one large head string, then append optional toggles
+    # as __region and __network (matching existing conventions in scripts).
     return "__".join(str(p) for p in parts)
+
+
+def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bool) -> str:
+    """
+    Kilosort output folders use a shorter, KS-specific tag:
+    - Keep RS alpha/limits + minSpk/minDur/minCh + region/network toggles
+    - Drop SNR/FR (KS clusters use NaN SNR; FR filtering is implicit in stats)
+    - Append optional flags: GoodOnly, SepShank
+    """
+    m = params["method"]
+    if m != "rankSurprise":
+        # For now, only RS is used for KS runs; fall back to default naming.
+        return run_tag_from_params(params)
+
+    ac = float(params["RS_alpha_cluster"])
+    ar = float(params["RS_alpha_region"])
+    an = float(params["RS_alpha_network"])
+    a_pct = (int(round(100 * ac)), int(round(100 * ar)), int(round(100 * an)))
+    lims = (int(params["RS_limit_cluster"]), int(params["RS_limit_region"]), int(params["RS_limit_network"]))
+    head = f"RS=({a_pct[0]},{a_pct[1]},{a_pct[2]})_({lims[0]},{lims[1]},{lims[2]})"
+
+    flags = []
+    if good_only:
+        flags.append("GoodOnly")
+    if sep_shank:
+        flags.append("SepShank")
+    flags_str = ("_" + "_".join(flags)) if flags else ""
+
+    mins = (
+        f"minSpk={params['MIN_SPIKES_IN_BURST']}"
+        f"__minDur={params['MIN_BURST_DURATION']}ms"
+        f"__minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}"
+    )
+
+    toggles = ""
+    if params.get("region_burst"):
+        toggles += "_region"
+    if params.get("network_burst"):
+        toggles += "__network" if toggles else "_network"
+
+    return f"{head}{flags_str}_{mins}{toggles}"
 
 
 def figure_title_from_params(params: dict, patient: str, period: str) -> str:

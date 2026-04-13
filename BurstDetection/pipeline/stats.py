@@ -19,16 +19,25 @@ def snr_fails_filter(snr_val: float) -> bool:
 
 
 def build_cache(
-    mat_file: str,
+    mat_file: str | None,
     cluster_stats_csv: Path,
-    pooled_cluster_stats_csv:Path,
+    pooled_cluster_stats_csv: Path,
     base_thr: float,
     record_len_s: float,
     adaptie_thr_toggle: bool,
     pooling_toggle,
+    *,
+    spike_struct=None,
+    skip_snr_filter: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     """
-    Scan the .mat file and compute per-cluster statistics.
+    Scan spike data and compute per-cluster statistics.
+
+    Provide either ``mat_file`` (loads variable spikeTime) or ``spike_struct`` in memory
+    (e.g. from :func:`pipeline.kilosort_loader.load_kilosort_dir`).
+
+    ``skip_snr_filter`` (e.g. for Kilosort loads with NaN SNR) skips SNR_MIN / SNR_MAX checks;
+    FR_MIN_HZ and minimum spike count still apply.
 
     Writes:
       - isi_stats.csv
@@ -37,14 +46,23 @@ def build_cache(
     Returns:
       DataFrame indexed by (Electrode, Cluster)
     """
-    mat = spio.loadmat(mat_file, squeeze_me=True, struct_as_record=False)
+    if spike_struct is not None:
+        st = spike_struct
+    elif mat_file is not None:
+        mat = spio.loadmat(mat_file, squeeze_me=True, struct_as_record=False)
+        st = mat["spikeTime"]
+    else:
+        raise ValueError("build_cache requires mat_file or spike_struct")
 
-    print(f"[DEBUG build_cache] SNR_MIN={SNR_MIN}, SNR_MAX={SNR_MAX}")
+    if not skip_snr_filter:
+        print(f"[DEBUG build_cache] SNR_MIN={SNR_MIN}, SNR_MAX={SNR_MAX}")
+    else:
+        print("[DEBUG build_cache] SNR filter skipped (skip_snr_filter=True); FR_MIN_HZ still applies")
     rows: list[dict[str, Any]] = []
     _skipped_snr = 0
     _kept = 0
 
-    for ch in np.ravel(mat["spikeTime"]):
+    for ch in np.ravel(st):
         elec = str(ch.electrode)
         snr_arr = np.asarray(ch.snr).flatten()
         
@@ -57,7 +75,7 @@ def build_cache(
             fr_hz = spk.size / record_len_s
             if fr_hz < FR_MIN_HZ:
                 continue
-            if snr_fails_filter(snr_val):
+            if not skip_snr_filter and snr_fails_filter(snr_val):
                 _skipped_snr += 1
                 print(f"  [SKIP] {elec} cl={cl} SNR={snr_val:.3f} (fails filter)")
                 continue
@@ -102,15 +120,19 @@ def build_cache(
     df = pd.DataFrame(rows)
     df.to_csv(cluster_stats_csv, index=False)
 
-    print(f"[DEBUG build_cache] Kept {_kept} clusters, skipped {_skipped_snr} by SNR filter")
+    if not skip_snr_filter:
+        print(f"[DEBUG build_cache] Kept {_kept} clusters, skipped {_skipped_snr} by SNR filter")
+    else:
+        print(f"[DEBUG build_cache] Kept {_kept} clusters (SNR not used for filtering)")
     if _kept > 0:
         snr_vals = [r["SNR"] for r in rows if not np.isnan(r["SNR"])]
-        print(f"[DEBUG build_cache] SNR range of kept: {min(snr_vals):.2f} – {max(snr_vals):.2f}")
+        if snr_vals:
+            print(f"[DEBUG build_cache] SNR range of kept: {min(snr_vals):.2f} – {max(snr_vals):.2f}")
     print(f"• Wrote {len(df)} rows → {cluster_stats_csv}")
 
     if pooling_toggle:
         pooled_rows: list[dict[str, Any]] = []
-        for ch in np.ravel(mat["spikeTime"]):
+        for ch in np.ravel(st):
             elec = str(ch.electrode)
             snr_arr = np.asarray(ch.snr).flatten()
             pooled = []
@@ -122,7 +144,7 @@ def build_cache(
                 fr_hz_cl = spk.size / record_len_s
                 if fr_hz_cl < FR_MIN_HZ:
                     continue
-                if snr_fails_filter(snr_val):
+                if not skip_snr_filter and snr_fails_filter(snr_val):
                     continue
                 pooled.append(spk)
             if not pooled:
