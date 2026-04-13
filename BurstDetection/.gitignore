@@ -6,6 +6,9 @@
 !compare_proxy_vs_network.py
 !config.py
 !cross_patient_region_exclusion.py
+!CONTEXT.md
+!README.md
+!kilosort_to_spiketime_mat.py
 !main.py
 !onset_triggered_proxy.py
 !plot_proxy_vs_fr_by_patient.py
@@ -13,6 +16,7 @@
 !proxy_detection_demo.py
 !proxy_lag_analysis.py
 !proxy_slope_detection.py
+!run_datasets_parallel.ps1
 !proxy_lag_plots/
 !proxy_slope_detection/
 !scripts/
@@ -30,9 +34,12 @@ pipeline/*
 !pipeline/region_exclusion.py
 !pipeline/stats.py
 !pipeline/utils.py
+!pipeline/burst_paths.py
+!pipeline/kilosort_loader.py
 
 # General
 __pycache__/
 *.pyc
 *.pyo
 .DS_Store
+Untitled

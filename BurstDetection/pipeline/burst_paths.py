@@ -1,0 +1,56 @@
+# burst_paths.py
+"""Paths for Rank-Surprise burst timing CSVs under each run directory."""
+from __future__ import annotations
+
+from pathlib import Path
+
+BURST_TIMINGS_SUBDIR = "burst_timings"
+
+
+def burst_timings_dir(run_dir: Path) -> Path:
+    return Path(run_dir) / BURST_TIMINGS_SUBDIR
+
+
+def burst_network_csv_path(run_dir: Path, side_tag: str) -> Path:
+    """side_tag: combined | left | right → network_LR.csv / network_bursts_L.csv / network_bursts_R.csv."""
+    d = burst_timings_dir(run_dir)
+    if side_tag == "combined":
+        return d / "network_LR.csv"
+    if side_tag == "left":
+        return d / "network_bursts_L.csv"
+    if side_tag == "right":
+        return d / "network_bursts_R.csv"
+    raise ValueError(f"side_tag must be combined|left|right, got {side_tag!r}")
+
+
+def burst_unit_csv_path(run_dir: Path, side_tag: str) -> Path:
+    """combined → unit_LR.csv; left/right → unit_bursts_L.csv / unit_bursts_R.csv."""
+    d = burst_timings_dir(run_dir)
+    if side_tag == "combined":
+        return d / "unit_LR.csv"
+    if side_tag == "left":
+        return d / "unit_bursts_L.csv"
+    if side_tag == "right":
+        return d / "unit_bursts_R.csv"
+    raise ValueError(f"side_tag must be combined|left|right, got {side_tag!r}")
+
+
+def burst_region_csv_path(run_dir: Path, side_tag: str) -> Path:
+    """combined → region_LR.csv; left/right → region_bursts_L.csv / region_bursts_R.csv."""
+    d = burst_timings_dir(run_dir)
+    if side_tag == "combined":
+        return d / "region_LR.csv"
+    if side_tag == "left":
+        return d / "region_bursts_L.csv"
+    if side_tag == "right":
+        return d / "region_bursts_R.csv"
+    raise ValueError(f"side_tag must be combined|left|right, got {side_tag!r}")
+
+
+def is_under_burst_timings(p: Path) -> bool:
+    return p.parent.name == BURST_TIMINGS_SUBDIR
+
+
+def network_burst_csv_basename(side: str) -> str:
+    """Filename only (for flat copies under permutation folders). side: left | right."""
+    return burst_network_csv_path(Path("."), side).name
