@@ -152,61 +152,61 @@ SpikeTime_Mat_File = [
     "patient_data/s530/spikeTime_p3.mat",
 
 
-    "patient_data/s531/day1_baseline/spikeTime_p2.mat",
+    # "patient_data/s531/day1_baseline/spikeTime_p2.mat",
    
-    r"kilosort:F:\rat data\m360\shank0\imec0\kilosort4",
-    r"kilosort:F:\rat data\m360\shank1\imec0\kilosort4",
-    r"kilosort:F:\rat data\m360\shank2\imec0\kilosort4",
-    r"kilosort:F:\rat data\m360\shank3\imec0\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank0\imec0\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank1\imec0\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank2\imec0\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank3\imec0\kilosort4",
 
-    r"kilosort:F:\rat data\m360\shank0\imec1\kilosort4",
-    r"kilosort:F:\rat data\m360\shank1\imec1\kilosort4",
-    r"kilosort:F:\rat data\m360\shank2\imec1\kilosort4",
-    r"kilosort:F:\rat data\m360\shank3\imec1\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank0\imec1\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank1\imec1\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank2\imec1\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank3\imec1\kilosort4",
 
-    r"kilosort:F:\rat data\m360\shank0\imec2\kilosort4",
-    r"kilosort:F:\rat data\m360\shank1\imec2\kilosort4",
-    r"kilosort:F:\rat data\m360\shank2\imec2\kilosort4",
-    r"kilosort:F:\rat data\m360\shank3\imec2\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank0\imec2\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank1\imec2\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank2\imec2\kilosort4",
+    # r"kilosort:F:\rat data\m360\shank3\imec2\kilosort4",
 
 
-    r"kilosort:F:\rat data\m361\shank0\imec0\kilosort4",
-    r"kilosort:F:\rat data\m361\shank1\imec0\kilosort4",
-    r"kilosort:F:\rat data\m361\shank2\imec0\kilosort4",
-    r"kilosort:F:\rat data\m361\shank3\imec0\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank0\imec0\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank1\imec0\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank2\imec0\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank3\imec0\kilosort4",
 
-    r"kilosort:F:\rat data\m361\shank0\imec1\kilosort4",
-    r"kilosort:F:\rat data\m361\shank1\imec1\kilosort4",
-    r"kilosort:F:\rat data\m361\shank2\imec1\kilosort4",
-    r"kilosort:F:\rat data\m361\shank3\imec1\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank0\imec1\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank1\imec1\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank2\imec1\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank3\imec1\kilosort4",
 
-    r"kilosort:F:\rat data\m361\shank0\imec2\kilosort4",
-    r"kilosort:F:\rat data\m361\shank1\imec2\kilosort4",
-    r"kilosort:F:\rat data\m361\shank2\imec2\kilosort4",
-    r"kilosort:F:\rat data\m361\shank3\imec2\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank0\imec2\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank1\imec2\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank2\imec2\kilosort4",
+    # r"kilosort:F:\rat data\m361\shank3\imec2\kilosort4",
 
-    r"kilosortset:F:\rat data\m360\shank0\imec0\kilosort4;F:\rat data\m360\shank1\imec0\kilosort4;F:\rat data\m360\shank2\imec0\kilosort4;F:\rat data\m360\shank3\imec0\kilosort4",
-    r"kilosortset:F:\rat data\m360\shank0\imec1\kilosort4;F:\rat data\m360\shank1\imec1\kilosort4;F:\rat data\m360\shank2\imec1\kilosort4;F:\rat data\m360\shank3\imec1\kilosort4",
-    r"kilosortset:F:\rat data\m360\shank0\imec2\kilosort4;F:\rat data\m360\shank1\imec2\kilosort4;F:\rat data\m360\shank2\imec2\kilosort4;F:\rat data\m360\shank3\imec2\kilosort4",
+    # r"kilosortset:F:\rat data\m360\shank0\imec0\kilosort4;F:\rat data\m360\shank1\imec0\kilosort4;F:\rat data\m360\shank2\imec0\kilosort4;F:\rat data\m360\shank3\imec0\kilosort4",
+    # r"kilosortset:F:\rat data\m360\shank0\imec1\kilosort4;F:\rat data\m360\shank1\imec1\kilosort4;F:\rat data\m360\shank2\imec1\kilosort4;F:\rat data\m360\shank3\imec1\kilosort4",
+    # r"kilosortset:F:\rat data\m360\shank0\imec2\kilosort4;F:\rat data\m360\shank1\imec2\kilosort4;F:\rat data\m360\shank2\imec2\kilosort4;F:\rat data\m360\shank3\imec2\kilosort4",
    
-    r"kilosortset:F:\rat data\m361\shank0\imec0\kilosort4;F:\rat data\m361\shank1\imec0\kilosort4;F:\rat data\m361\shank2\imec0\kilosort4;F:\rat data\m361\shank3\imec0\kilosort4",
-    r"kilosortset:F:\rat data\m361\shank0\imec1\kilosort4;F:\rat data\m361\shank1\imec1\kilosort4;F:\rat data\m361\shank2\imec1\kilosort4;F:\rat data\m361\shank3\imec1\kilosort4",
-    r"kilosortset:F:\rat data\m361\shank0\imec2\kilosort4;F:\rat data\m361\shank1\imec2\kilosort4;F:\rat data\m361\shank2\imec2\kilosort4;F:\rat data\m361\shank3\imec2\kilosort4",
+    # r"kilosortset:F:\rat data\m361\shank0\imec0\kilosort4;F:\rat data\m361\shank1\imec0\kilosort4;F:\rat data\m361\shank2\imec0\kilosort4;F:\rat data\m361\shank3\imec0\kilosort4",
+    # r"kilosortset:F:\rat data\m361\shank0\imec1\kilosort4;F:\rat data\m361\shank1\imec1\kilosort4;F:\rat data\m361\shank2\imec1\kilosort4;F:\rat data\m361\shank3\imec1\kilosort4",
+    # r"kilosortset:F:\rat data\m361\shank0\imec2\kilosort4;F:\rat data\m361\shank1\imec2\kilosort4;F:\rat data\m361\shank2\imec2\kilosort4;F:\rat data\m361\shank3\imec2\kilosort4",
 
 
-    "patient_data/s531/day1_test/spikeTime_p2.mat",
+    # "patient_data/s531/day1_test/spikeTime_p2.mat",
 
 
-    "patient_data/s531/day1_test/spikeTime_p2.mat",
-    "patient_data/s531/day1_test/spikeTime_p3.mat",
-    'patient_data/s531/day1_baseline/spikeTime_p3.mat',
+    # "patient_data/s531/day1_test/spikeTime_p2.mat",
+    # "patient_data/s531/day1_test/spikeTime_p3.mat",
+    # 'patient_data/s531/day1_baseline/spikeTime_p3.mat',
     
 
-    "patient_data/s531/day2_baseline/spikeTime_p2.mat",
-    "patient_data/s531/day2_baseline/spikeTime_p3.mat",
+    # "patient_data/s531/day2_baseline/spikeTime_p2.mat",
+    # "patient_data/s531/day2_baseline/spikeTime_p3.mat",
 
 
-    "patient_data/s531/day4_baseline/spikeTime_p5.mat",
+    # "patient_data/s531/day4_baseline/spikeTime_p5.mat",
 
 
 ]
@@ -342,12 +342,24 @@ APPLY_MIN_BURST_DURATION_ALL_STAGES = False
 
 # Filtering
 FR_MIN_HZ = 0.8
-SNR_MIN = 3
+SNR_MIN = 1.2
 SNR_MAX = 25
 
 # ============================================================
 # RANK SURPRISE PARAMETERS
 # ============================================================
+# Multi-stage RS baseline (region/network): offset-based independence null.
+# When enabled, region- and network-level RS compare the observed compiled onset train
+# against a reference train built by applying a random constant offset per source train
+# (unit/channel for region; region for network) and merging them. This breaks cross-source
+# synchrony while preserving within-source timing statistics.
+RS_OFFSET_NULL_ENABLE: bool = True
+# Seed for reproducible random offsets (same seed => identical offsets and results).
+RS_OFFSET_NULL_SEED: int = 123
+# Max absolute offset magnitude (ms). Offsets are sampled uniformly in [0, RS_OFFSET_NULL_MAX_OFFSET_MS).
+# If None, defaults to the estimated recording duration for that side (from latest burst end time).
+RS_OFFSET_NULL_MAX_OFFSET_MS: float | None = 1000.0
+
 # Stage 1: unit/cluster bursts  
 RS_Limit_stage1 = None
 RS_Percentile_Limit_stage1 = 75
@@ -370,7 +382,7 @@ RS_alpha_network = -np.log(RS_alpha_percentage_network)
 MIN_UNIQUE_CHANNELS_REGION = 1
 MIN_UNIQUE_CHANNELS_NETWORK = 0
 
-RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),] # (stage1,  region,  network)
+RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02),(0.08,    0.05,    0.03),] # (stage1,  region,  network)
 
 # ============================================================
 # ALPHA MEAN-ISI PARAMETERS

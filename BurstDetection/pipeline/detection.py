@@ -97,7 +97,82 @@ def detect_bursts(
 # Rank Surprise burst detection
 # =====================================================================
 
-def RS_detect_burst(spiketimes, limit=None, RSalpha=-np.log(0.01), min_spikes=3, RS_Percentile_Limit=75):
+def _ranks_against_reference(values: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    """
+    Map each value to a (possibly fractional) rank against a reference sample.
+
+    Rank definition matches the tie-handling used by `_val2rank` (mean rank for ties),
+    but ranks are computed relative to `reference` instead of within `values`.
+
+    Returns ranks in [1, len(reference)].
+    """
+    v = np.asarray(values, dtype=float)
+    r = np.asarray(reference, dtype=float)
+    r = r[np.isfinite(r)]
+    if r.size == 0:
+        return np.full(v.shape, 1.0, dtype=float)
+    r = np.sort(r)
+
+    # left = count(< x), right = count(<= x)
+    left = np.searchsorted(r, v, side="left").astype(float)
+    right = np.searchsorted(r, v, side="right").astype(float)
+    # mean rank for ties in 1..N indexing
+    return (left + 1.0 + right) / 2.0
+
+
+def _build_offset_reference_train_ms(
+    source_trains_ms: dict[str, np.ndarray],
+    *,
+    record_len_ms: float,
+    seed: int,
+    max_offset_ms: float | None,
+) -> np.ndarray:
+    """
+    Build a reference event train by applying a random constant offset per source train,
+    then merging all sources.
+
+    Offsets are reproducible given `seed` and deterministic key ordering.
+    Times are wrapped into [0, record_len_ms) to avoid boundary artifacts from shifting.
+    """
+    if not source_trains_ms:
+        return np.asarray([], dtype=float)
+    rec = float(record_len_ms)
+    if not np.isfinite(rec) or rec <= 0:
+        # Fallback: if we can't estimate a recording length, don't wrap.
+        rec = float("nan")
+
+    max_off = float(max_offset_ms) if max_offset_ms is not None else (rec if np.isfinite(rec) else 0.0)
+    if not np.isfinite(max_off) or max_off <= 0:
+        max_off = 0.0
+
+    rng = np.random.default_rng(int(seed))
+    merged: list[np.ndarray] = []
+    for k in sorted(source_trains_ms.keys()):
+        t = np.asarray(source_trains_ms[k], dtype=float)
+        t = t[np.isfinite(t)]
+        if t.size == 0:
+            continue
+        delta = float(rng.uniform(0.0, max_off)) if max_off > 0 else 0.0
+        tt = t + delta
+        if np.isfinite(rec):
+            tt = np.mod(tt, rec)
+        merged.append(tt)
+
+    if not merged:
+        return np.asarray([], dtype=float)
+    out = np.sort(np.concatenate(merged).astype(float, copy=False))
+    return out
+
+
+def RS_detect_burst(
+    spiketimes,
+    limit=None,
+    RSalpha=-np.log(0.01),
+    min_spikes=3,
+    RS_Percentile_Limit=75,
+    *,
+    baseline_spiketimes=None,
+):
     """Detect bursts in spiketimes using Rank-Surprise method.
 
     Return a tuple (start, length, RS) where
@@ -114,12 +189,31 @@ def RS_detect_burst(spiketimes, limit=None, RSalpha=-np.log(0.01), min_spikes=3,
     log_fac = np.cumsum(np.log(np.r_[1:q_lim + 1]))
 
     ISI = np.diff(spiketimes)
-    N = len(ISI)
+    ISI = np.asarray(ISI, dtype=float)
+    ISI = ISI[np.isfinite(ISI)]
 
-    if limit is None:
-        limit = np.percentile(ISI, RS_Percentile_Limit)
-
-    R = _val2rank(ISI)
+    # Optional: compute ranks and (percentile) limit against a baseline ISI distribution
+    # (used for higher-level RS where we want an independence-preserving null).
+    if baseline_spiketimes is not None:
+        base = np.asarray(baseline_spiketimes, dtype=float)
+        base = base[np.isfinite(base)]
+        base = np.sort(base)
+        base_ISI = np.diff(base)
+        base_ISI = np.asarray(base_ISI, dtype=float)
+        base_ISI = base_ISI[np.isfinite(base_ISI)]
+        N = int(base_ISI.size)
+        if N <= 0:
+            N = int(ISI.size)
+        if limit is None:
+            ref = base_ISI if base_ISI.size else ISI
+            limit = np.percentile(ref, RS_Percentile_Limit) if ref.size else 0.0
+        ref_for_ranks = base_ISI if base_ISI.size else ISI
+        R = _ranks_against_reference(ISI, ref_for_ranks)
+    else:
+        N = int(ISI.size)
+        if limit is None:
+            limit = np.percentile(ISI, RS_Percentile_Limit) if ISI.size else 0.0
+        R = _val2rank(ISI)
 
     ISI_limit = np.diff(np.where(ISI < limit, 1, 0))
     begin_int = np.nonzero(ISI_limit == 1)[0] + 1
@@ -432,6 +526,28 @@ def rs_burst_detection(
                     continue
 
                 unit_bursts_in_reg = [b for b in unit_bursts if b.get("_Region") == reg]
+                # Build a per-(electrode,cluster) onset train and apply a seeded random offset per source
+                # to form an independence-preserving reference baseline for region-level RS.
+                baseline_onsets_ms = None
+                if RS_OFFSET_NULL_ENABLE:
+                    by_unit: dict[str, np.ndarray] = {}
+                    for bb in unit_bursts_in_reg:
+                        key = f"{bb.get('Electrode')}|{int(bb.get('Cluster', -1))}"
+                        by_unit.setdefault(key, []).append(float(bb["Start_ms"]))
+                    by_unit_arr: dict[str, np.ndarray] = {
+                        k: np.sort(np.asarray(v, dtype=float)) for k, v in by_unit.items()
+                    }
+                    # Estimate record length from the latest unit burst end in this side.
+                    # (Times are ms; wrapping prevents boundary artifacts in the merged reference.)
+                    rec_len_ms = 0.0
+                    if unit_bursts:
+                        rec_len_ms = float(np.nanmax([float(x.get("End_ms", 0.0)) for x in unit_bursts]))
+                    baseline_onsets_ms = _build_offset_reference_train_ms(
+                        by_unit_arr,
+                        record_len_ms=rec_len_ms,
+                        seed=int(RS_OFFSET_NULL_SEED),
+                        max_offset_ms=RS_OFFSET_NULL_MAX_OFFSET_MS,
+                    )
 
                 start_idx_r, length_r, RSvals_r = RS_detect_burst(
                     onsets_ms,
@@ -439,6 +555,7 @@ def rs_burst_detection(
                     RSalpha=RS_alpha_region,
                     min_spikes=MIN_SPIKES_IN_BURST,
                     RS_Percentile_Limit=RS_Percentile_Limit_region,
+                    baseline_spiketimes=baseline_onsets_ms,
                 )
 
                 windows: list[tuple[float, float]] = []
@@ -526,12 +643,33 @@ def rs_burst_detection(
 
             network_bursts: list[dict] = []
             if onsets_ms.size >= MIN_SPIKES_IN_BURST:
+                baseline_onsets_ms = None
+                if RS_OFFSET_NULL_ENABLE:
+                    # Build per-region onset trains (sources) and apply a seeded random offset per region.
+                    by_region: dict[str, list[float]] = {}
+                    for bb in onset_source:
+                        reg = infer_region_fn(str(bb.get("Electrode", "")))
+                        by_region.setdefault(reg, []).append(float(bb["Start_ms"]))
+                    by_region_arr: dict[str, np.ndarray] = {
+                        k: np.sort(np.asarray(v, dtype=float)) for k, v in by_region.items()
+                    }
+                    rec_len_ms = 0.0
+                    if onset_source:
+                        rec_len_ms = float(np.nanmax([float(x.get("End_ms", x.get("Start_ms", 0.0))) for x in onset_source]))
+                    baseline_onsets_ms = _build_offset_reference_train_ms(
+                        by_region_arr,
+                        record_len_ms=rec_len_ms,
+                        seed=int(RS_OFFSET_NULL_SEED),
+                        max_offset_ms=RS_OFFSET_NULL_MAX_OFFSET_MS,
+                    )
+
                 start_idx2, length2, RSvals2 = RS_detect_burst(
                     onsets_ms,
                     limit=RS_Limit_network,
                     RSalpha=RS_alpha_network,
                     min_spikes=MIN_SPIKES_IN_BURST,
                     RS_Percentile_Limit=RS_Percentile_Limit_network,
+                    baseline_spiketimes=baseline_onsets_ms,
                 )
 
                 windows: list[tuple[float, float]] = []

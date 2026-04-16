@@ -336,6 +336,9 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
             "RS_limit_network": RS_Percentile_Limit_network,
             "region_burst": RS_region_burst_toggle,
             "network_burst": RS_NETWORK_ONSETS_TOGGLE,
+            "RS_offset_null": bool(RS_OFFSET_NULL_ENABLE),
+            "RS_offset_null_seed": int(RS_OFFSET_NULL_SEED),
+            "RS_offset_null_max_offset_ms": RS_OFFSET_NULL_MAX_OFFSET_MS,
         })
 
     return common
@@ -392,6 +395,8 @@ def run_tag_from_params(params: dict) -> str:
             toggles += "_region"
         if params.get("network_burst"):
             toggles += "__network" if toggles else "network"
+        if params.get("RS_offset_null"):
+            toggles += "__offNull" if toggles else "offNull"
         tag = f"{head}_{mins}_{common_suffix}{toggles}"
         parts += [tag]
         if params["pooling"]:
@@ -471,6 +476,10 @@ def figure_title_from_params(params: dict, patient: str, period: str) -> str:
             f"region={'on' if params['region_burst'] else 'off'}  "
             f"network={'on' if params['network_burst'] else 'off'}"
         )
+        if params.get("RS_offset_null"):
+            mx = params.get("RS_offset_null_max_offset_ms")
+            mx_txt = f"{float(mx):.0f}ms" if mx is not None else "auto"
+            detail += f"  offsetNull=on(seed={params.get('RS_offset_null_seed')}, max={mx_txt})"
     else:
         detail = ""
 

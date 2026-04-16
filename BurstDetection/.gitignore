@@ -7,6 +7,7 @@
 !config.py
 !cross_patient_region_exclusion.py
 !CONTEXT.md
+!PAPER_METHODOLOGY_CONTEXT.md
 !PAPER_METHODOLOGY_AGENT_BRIEF.md
 !README.md
 !kilosort_to_spiketime_mat.py

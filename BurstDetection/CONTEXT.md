@@ -50,6 +50,24 @@ In `config.py`, **exactly one** of `maxisi_toggle`, `alpha_meanisi_toggle`, `ran
 
 `RS_ALPHA_SETS` in `config.py` drives a loop over Rank Surprise alpha triples for the main run (when using RS).
 
+## RankSurprise multi-stage baseline (planned change)
+
+Current RS staging uses **onset-time trains** at higher levels (region, then network), and RS is run again on those compiled onset trains. This can dilute “surprise” when many channels burst synchronously at repeated times (e.g. strong clusters at 1s, 3s, 10s): the compiled train’s own ISI structure becomes the reference and those clusters can look “not surprising”.
+
+Planned change for **region-level RS** and **network-level RS**:
+
+- **Observed event train (unchanged)**: compile the relevant lower-level onsets into a single event train for that region/network (as today).
+- **Reference / null train (new)**: build an *independence-preserving* reference distribution by taking each contributing channel/unit (for region) or each contributing region (for network) and applying a **random constant time offset** (different per source), then merging the offset trains.
+  - Offsets are sampled once per run from a reproducible RNG seed (so results are repeatable).
+  - The goal is to break cross-source synchrony while preserving within-source timing statistics.
+- **Scoring**: compare the observed compiled train to this offset-based reference (instead of using only the observed compiled train’s own ISI structure as its implicit baseline).
+
+Implementation notes to keep consistent across datasets:
+
+- **Offsets are in ms** (pipeline spike/event times are ms).
+- **Reproducibility**: use a documented seed (e.g. derived from patient/period/run_tag or a fixed config seed).
+- **Offset range**: choose a range large enough to decorrelate sources relative to expected burst widths/IBIs (paper should state the exact range).
+
 ## Output layout (current)
 
 Outputs go under **per-method roots** (see `config.py`), not only legacy `outputs/` names in older docs:
