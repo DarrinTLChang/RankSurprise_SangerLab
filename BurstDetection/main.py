@@ -1,7 +1,6 @@
 # main.py
 from __future__ import annotations
 import argparse
-import shutil
 import time
 import re
 from pathlib import Path
@@ -12,7 +11,6 @@ import pandas as pd
 from config import *
 import config as cfg
 import pipeline.detection as detection
-import pipeline.region_exclusion as region_exclusion
 import pipeline.utils as utils
 from pipeline.emg import *
 from pipeline.detection import *
@@ -21,18 +19,7 @@ from pipeline.stats import *
 from pipeline.coactivity import *
 from pipeline.plotting import *
 from pipeline.isi import *
-from pipeline.burst_paths import burst_network_csv_path, burst_region_csv_path, burst_unit_csv_path
 from pipeline.kilosort_loader import parse_dataset_spec
-from pipeline.region_exclusion import (
-    load_gt_spans,
-    load_gt_onset_starts,
-    iter_permutation_dirs,
-    run_network_with_excluded_regions,
-    get_permutation_data_for_plotting,
-    mean_iou_vs_gt,
-    mean_onset_start_error_ms,
-    mean_onset_start_error_pred_to_gt_ms,
-)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -105,6 +92,32 @@ def _resolve_proxy_csv(p: str | None) -> Path | None:
         return pp.resolve()
     cand = (REPO_ROOT / pp).resolve()
     return cand if cand.exists() else pp
+
+
+def _load_bilateral_proxy_csv(
+    csv_path: Path,
+    *,
+    time_col: str,
+    left_col: str,
+    right_col: str,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Load bilateral proxy CSV columns used by the main raster/proxy workflow.
+    Returns (time_s, left_vals, right_vals) after dropping rows with missing values.
+    """
+    df = pd.read_csv(csv_path)
+    required = [time_col, left_col, right_col]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required proxy columns: {missing}")
+    sub = df[required].dropna()
+    if sub.empty:
+        raise ValueError("Proxy CSV has no valid rows after dropping NaNs.")
+    t_s = np.asarray(sub[time_col].to_numpy(), dtype=float)
+    hemi_l = np.asarray(sub[left_col].to_numpy(), dtype=float)
+    hemi_r = np.asarray(sub[right_col].to_numpy(), dtype=float)
+    order = np.argsort(t_s)
+    return t_s[order], hemi_l[order], hemi_r[order]
 
 
 def _resolve_dataset_entry(spec: str) -> str:
@@ -212,7 +225,7 @@ def run_single_dataset(
     # Per-recording WIN-SHUFF parameter resolution (fixed vs auto-from-recording).
     if thr_method_name == "rankSurprise":
         ws_ms_eff, bin_ms_eff = _resolve_win_shuff_params_ms(record_len_s)
-        for mod in (cfg, detection, region_exclusion, utils):
+        for mod in (cfg, detection, utils):
             mod.RS_WIN_SHUFF_WINDOW_MS = float(ws_ms_eff)
             mod.RS_WIN_SHUFF_BIN_MS = float(bin_ms_eff)
         if bool(cfg.RS_WIN_SHUFF_STAGE1_ENABLE):
@@ -357,85 +370,6 @@ def run_single_dataset(
     region_bars_by_region_L = bd.region_bars_by_region_L
     region_bars_by_region_R = bd.region_bars_by_region_R
 
-    regions = None  # set by region exclusion study when enabled; used for permutation rasters
-
-    # --------------------------------------------------
-    # Region exclusion study (leave-K-out: CSVs per permutation + results)
-    # --------------------------------------------------
-    if RUN_REGION_EXCLUSION_STUDY and RS_NETWORK_ONSETS_TOGGLE:
-        regions = sorted(
-            set(infer_region(b["Electrode"]) for b in all_bursts_L)
-            | set(infer_region(b["Electrode"]) for b in all_bursts_R)
-        )
-        if not regions:
-            print("• Region exclusion study: no regions found, skipping")
-        else:
-            bursts_left = [dict(b, Region=infer_region(b["Electrode"])) for b in all_bursts_L]
-            bursts_right = [dict(b, Region=infer_region(b["Electrode"])) for b in all_bursts_R]
-            gt_left, gt_right = load_gt_spans(run_dir)
-            gt_onset_left, gt_onset_right = load_gt_onset_starts(run_dir)
-            study_base = run_dir / "region_exclusion_study"
-            study_base.mkdir(parents=True, exist_ok=True)
-            rows = []
-            for included_list, perm_dir in iter_permutation_dirs(study_base, regions, out_subdir=""):
-                excluded_set = set(regions) - set(included_list)
-                included_set = set(included_list)
-                included_str = "|".join(included_list)
-                perm_dir.mkdir(parents=True, exist_ok=True)
-                # Copy unit burst CSVs
-                for side in ("left", "right"):
-                    src = burst_unit_csv_path(run_dir, side)
-                    if src.exists():
-                        shutil.copy2(src, perm_dir / src.name)
-                # Write region_bursts filtered to included regions
-                for side in ("left", "right"):
-                    path = burst_region_csv_path(run_dir, side)
-                    if path.exists():
-                        df_reg = pd.read_csv(path)
-                        if "Region" in df_reg.columns:
-                            df_reg = df_reg[df_reg["Region"].astype(str).isin(included_set)]
-                        df_reg.to_csv(perm_dir / path.name, index=False)
-                # Network detection and CSVs per side; collect IoU (append by side for reorder later)
-                for side, gt_spans, gt_onset_starts, bursts in [
-                    ("left", gt_left, gt_onset_left, bursts_left),
-                    ("right", gt_right, gt_onset_right, bursts_right),
-                ]:
-                    network_rows, pred_spans, _ = run_network_with_excluded_regions(
-                        bursts, excluded_set
-                    )
-                    pd.DataFrame(network_rows).to_csv(
-                        perm_dir / burst_network_csv_path(run_dir, side).name, index=False
-                    )
-                    mean_iou, n_gt_matched, n_pred_matched = mean_iou_vs_gt(gt_spans, pred_spans)
-                    pred_onset_starts = [r["onset_start_ms"] for r in network_rows]
-                    mean_onset_err_ms = mean_onset_start_error_ms(gt_onset_starts, pred_onset_starts)
-                    mean_onset_err_pred_to_gt_ms = mean_onset_start_error_pred_to_gt_ms(gt_onset_starts, pred_onset_starts)
-                    K_excluded = len(excluded_set)
-                    n_gt = len(gt_spans)
-                    n_pred = len(pred_spans)
-                    pct_gt_matched = (100.0 * n_gt_matched / n_gt) if n_gt else float("nan")
-                    pct_pred_matched = (100.0 * n_pred_matched / n_pred) if n_pred else float("nan")
-                    rows.append({
-                        "Side": side,
-                        "K_excluded": K_excluded,
-                        "Regions_included": included_str,
-                        "N_gt_spans": n_gt,
-                        "N_pred_spans": n_pred,
-                        "Mean_IoU": mean_iou,
-                        "N_gt_matched": n_gt_matched,
-                        "Pct_GT_matched": pct_gt_matched,
-                        "N_pred_matched": n_pred_matched,
-                        "Pct_pred_matched": pct_pred_matched,
-                        "Mean_onset_start_error_ms": mean_onset_err_ms,
-                        "Mean_onset_start_error_pred_to_gt_ms": mean_onset_err_pred_to_gt_ms,
-                    })
-            if rows:
-                df_out = pd.DataFrame(rows)
-                # All Left rows first, then all Right (sort by Side: left < right)
-                df_out = df_out.sort_values("Side", kind="stable")
-                df_out.to_csv(study_base / "results.csv", index=False)
-                print(f"• Region exclusion study: wrote {len(rows)} rows → {study_base / 'results.csv'}")
-
     # --------------------------------------------------
     # EMG (for Sanger presentation figure)
     # --------------------------------------------------
@@ -498,8 +432,6 @@ def run_single_dataset(
     proxy_R_fr = None
 
     if kind != "kilosort" and (PLOT_PROXY_PANEL or COMPUTE_PROXY_VS_FR):
-        from compare_proxy_vs_network import load_bilateral_proxy_csv
-
         proxy_csv_resolved = _resolve_proxy_csv(PROXY_CSV)
         traces_L: list[tuple[str, np.ndarray]] = []
         traces_R: list[tuple[str, np.ndarray]] = []
@@ -507,7 +439,7 @@ def run_single_dataset(
 
         if PROXY_CSV and proxy_csv_resolved is not None and Path(proxy_csv_resolved).is_file():
             try:
-                t_s, hemi_L, hemi_R = load_bilateral_proxy_csv(
+                t_s, hemi_L, hemi_R = _load_bilateral_proxy_csv(
                     Path(proxy_csv_resolved),
                     time_col=PROXY_TIME_COL,
                     left_col=PROXY_LEFT_COL,
@@ -781,13 +713,25 @@ def run_single_dataset(
 
         # Stage 3: network-filtered bursts with network bars only.
         _make_and_save_stage_figure(
-            name="stage3_netowrk_burst",
+            name="stage3_network_burst",
             bursts_L=stage3_network_bursts_L,
             bursts_R=stage3_network_bursts_R,
             net_bars_L=network_bars_L,
             net_bars_R=network_bars_R,
             reg_bars_L={},
             reg_bars_R={},
+            duplicate_for_gallery=False,
+        )
+
+        # Overview: restored full-context plot with region + network bars.
+        _make_and_save_stage_figure(
+            name="overview_region_burst",
+            bursts_L=all_bursts_L,
+            bursts_R=all_bursts_R,
+            net_bars_L=network_bars_L,
+            net_bars_R=network_bars_R,
+            reg_bars_L=region_bars_by_region_L,
+            reg_bars_R=region_bars_by_region_R,
             duplicate_for_gallery=True,
         )
 
@@ -828,74 +772,6 @@ def run_single_dataset(
             show_firing_rate=PLOT_FR,
         )
         save_fig_interactive(fig_corr, raster_dir / "correlation_graph")
-
-    # Region exclusion study: Sanger raster per permutation (same figure, filtered data)
-    if RUN_REGION_EXCLUSION_STUDY and RS_NETWORK_ONSETS_TOGGLE and regions is not None:
-        study_base = run_dir / "region_exclusion_study"
-        for included_list, perm_dir in iter_permutation_dirs(study_base, regions, out_subdir=""):
-            if not perm_dir.exists():
-                continue
-            (filtered_L, filtered_R, reg_bars_L, reg_bars_R, net_bars_L, net_bars_R) = (
-                get_permutation_data_for_plotting(
-                    all_bursts_L, all_bursts_R,
-                    region_bars_by_region_L, region_bars_by_region_R,
-                    set(included_list),
-                )
-            )
-            inc_set = set(included_list)
-            filtered_clusters = {(e, c) for (e, c) in allowed_clusters if infer_region(e) in inc_set}
-            fr_perm_L = population_firing_rate_binned(
-                spike_struct_L, STATS, record_len_s,
-                bin_s=coactivity_bins_s, stride_s=stride_s,
-                allowed_clusters=filtered_clusters,
-                normalize_by_units=True,
-            )
-            fr_perm_R = population_firing_rate_binned(
-                spike_struct_R, STATS, record_len_s,
-                bin_s=coactivity_bins_s, stride_s=stride_s,
-                allowed_clusters=filtered_clusters,
-                normalize_by_units=True,
-            )
-            fig_perm = make_sangerlab_presentation_figure(
-                spike_struct_L=spike_struct_L,
-                spike_struct_R=spike_struct_R,
-                STATS=STATS,
-                all_bursts_L=filtered_L,
-                all_bursts_R=filtered_R,
-                record_len_s=record_len_s,
-                patient=patient,
-                period=period,
-                bin_s=coactivity_bins_s,
-                stride_s=stride_s,
-                run_params=run_params,
-                presentation_mode=presentation_mode,
-                allowed_clusters=filtered_clusters,
-                emg_t_s=t_emg,
-                emg_traces_L=emg_traces_L,
-                emg_traces_R=emg_traces_R,
-                emg_downsample=100,
-                emg_panel_labels=None,
-                emg_y_range=None,
-                network_windows_L=None,
-                network_windows_R=None,
-                network_bars_L=net_bars_L,
-                network_bars_R=net_bars_R,
-                region_windows_by_region_L=region_windows_L,
-                region_windows_by_region_R=region_windows_R,
-                region_bars_by_region_L=reg_bars_L,
-                region_bars_by_region_R=reg_bars_R,
-                disable_bursts=disable_bursts,
-                fr_df_L=fr_perm_L,
-                fr_df_R=fr_perm_R,
-                show_firing_rate=PLOT_FR,
-            )
-            raster_perm_dir = perm_dir / "raster_plots"
-            raster_perm_dir.mkdir(parents=True, exist_ok=True)
-            save_fig_interactive(fig_perm, raster_perm_dir / "sangerlab_presentation_LR_coact_EMG")
-            if DUPLICATE_SANGER_HTML and DUPLICATE_SANGER_HTML_DIR:
-                tag = _dataset_tag_for_gallery(kind, raw_path, patient)
-                out_base = Path(DUPLICATE_SANGER_HTML_DIR) / f"{tag}__perm_{perm_dir.name}"
-                save_fig_interactive(fig_perm, out_base)
 
     # # --------------------------------------------------
     # # Network burst ISI stats
@@ -1006,7 +882,7 @@ if __name__ == "__main__":
                         flush=True,
                     )
 
-            for mod in (cfg, detection, region_exclusion, utils):
+            for mod in (cfg, detection, utils):
                 mod.RS_alpha_percentage_stage1 = a_stage1
                 mod.RS_alpha_stage1 = -np.log(a_stage1)
                 mod.RS_alpha_percentage_region = a_region

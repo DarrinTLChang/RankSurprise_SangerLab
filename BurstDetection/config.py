@@ -3,44 +3,15 @@ from pathlib import Path
 import numpy as np
 from numpy.ma import nonzero
 
+# Central configuration for the burst detection pipeline.
+# Keep variable names stable: many modules use `from config import *`.
+
 # ============================================================
 # DATASETS
 # ============================================================
-
-
-# cd "c:\Users\Maral\Desktop\Darrin\RankSurprise_SangerLab-2\BurstDetection"
-# .\run_datasets_parallel.ps1 -CondaEnv bursts -Kind mat -ContainsJobs @(
-#     's516_surgery,spikeTime_p1',
-#     's522,spikeTime_p2',
-#     's522,spikeTime_p3',
-# )
-
-# .\run_datasets_parallel.ps1 -CondaEnv bursts -Kind kilosort -ContainsJobs @(
-#     'm361,imec0',
-#     'm361,imec1',
-#     'm361,imec2'
-#)
-
-# .\run_datasets_parallel.ps1 -CondaEnv bursts -Kind mat -ContainsJobs @(
-
-#     's522',
-#     's523',
-# )
-
-
-
-
-
-# 
-# #conda run -n bursts python main.py --only-dataset-kind mat --only-dataset-contains s531
-# python -u main.py --only-dataset-kind mat --only-dataset-contains s516_surgery --only-dataset-contains spikeTime_p1
+# Keep this list as the authoritative dataset registry for `main.py`.
+# You can run subsets via CLI (`--only-datasets`, `--only-dataset-contains`, `--only-dataset-kind`).
 SpikeTime_Mat_File = [
-     #511 on the fence
-
-    #benzodacypin 1 week, gradually fades until the next 
-    #check induce benzo and see as it gradually fades how does it gradaully fade over time and effects on bursts
-    #benzo is one of the most important drugs for dystonia control
-
     "patient_data/burst_pause_example/spikeTime_p1.mat",
 
 
@@ -131,11 +102,11 @@ SpikeTime_Mat_File = [
     "patient_data/s522/spikeTime_p2.mat",
     "patient_data/s522/spikeTime_p3.mat",
     "patient_data/s522/spikeTime_p6.mat",
-    "patient_data/s522/spikeTime_p7.mat",##
+    "patient_data/s522/spikeTime_p7.mat",
     "patient_data/s522/spikeTime_p13.mat",
     "patient_data/s522/spikeTime_p16.mat",
     "patient_data/s522/spikeTime_p17.mat",
-    "patient_data/s522/spikeTime_p5.mat",  #very long
+    "patient_data/s522/spikeTime_p5.mat",
 
     "patient_data/s523/spikeTime_p1.mat",
     "patient_data/s523/spikeTime_p3.mat",
@@ -155,8 +126,8 @@ SpikeTime_Mat_File = [
     "patient_data/s530/spikeTime_p3.mat",
 
 
+    # Examples / presets (keep commented; enable as needed):
     # "patient_data/s531/day1_baseline/spikeTime_p2.mat",
-   
     # r"kilosort:F:\rat data\m360\shank0\imec0\kilosort4",
     # r"kilosort:F:\rat data\m360\shank1\imec0\kilosort4",
     # r"kilosort:F:\rat data\m360\shank2\imec0\kilosort4",
@@ -214,6 +185,9 @@ SpikeTime_Mat_File = [
 
 ]
 
+# ============================================================
+# PROXY INPUT CONFIGURATION
+# ============================================================
 # Single CSV with bilateral proxy (main.py when PLOT_CORRELATION_GRAPH / COMPUTE_PROXY_VS_FR / PLOT_PROXY_PANEL).
 # Path may be absolute or relative to the repository root. Time column is in seconds.
 PROXY_CSV = r"F:\s531_binary\period2_baseline\offline\hemisphere_neo_binned.csv"  # e.g. r"F:\data\session_proxies.csv"
@@ -221,9 +195,12 @@ PROXY_TIME_COL = "time_s"
 PROXY_LEFT_COL = "hemisphere_L_median_proxy"
 PROXY_RIGHT_COL = "hemisphere_R_median_proxy"
 
-# Legacy only: folder root for standalone scripts (proxy_lag_analysis, etc.) that still use the old per-side Excel layout.
+# Legacy proxy folder root. Kept for compatibility with historical local workflows.
 PROXY_ROOT = None
 
+# ============================================================
+# KILOSORT CONTROLS
+# ============================================================
 # Kilosort 4 (see pipeline/kilosort_loader.py). Used when a dataset entry is ``kilosort:<path/to/kilosort4>``.
 # good_only: keep only clusters with KSLabel ``good`` in cluster_group.tsv (False = include MUA/noise too).
 # skip_pipeline_snr_filter: Kilosort units have NaN SNR here; True skips SNR_MIN/SNR_MAX in build_cache (FR_MIN_HZ still applies).
@@ -260,13 +237,12 @@ OUTPUT_ROOT_ALPHA_MEANISI = Path(r"F:\SangerLabBursts_alphaMeanISI")
 # RankSurprise root under the new layout.
 BURST_ROOT = OUTPUT_ROOT_RS
 
-# Root for all proxy-vs-burst analysis outputs. Each script writes under a subdir:
-#   proxy_lag_plots, proxy_detection_demo, onset_triggered_plots, proxy_slope_detection.
+# Root for proxy-analysis outputs from the current workflow.
 # Change this to redirect all proxy analysis outputs (e.g. to D_Drive).
 PROXY_ANALYSIS_ROOT = Path(r"F:\SangerLabBursts\proxy_analysis")
 
-# Run tag for proxy scripts (proxy_lag_analysis, proxy_detection_demo, onset_triggered_proxy,
-# proxy_slope_detection). Must match a rankSurprise subdir under BURST_ROOT/patient/PeriodN/.
+# Run tag for proxy-analysis runs. Must match a rankSurprise subdir under
+# BURST_ROOT/patient/PeriodN/.
 # Change here to switch burst parameter set without passing --run-tag each time.
 PROXY_ANALYSIS_RUN_TAG = (
     "RS=(8,5,3)_(75,75,75)"
@@ -308,41 +284,37 @@ PLOT_EMG = False
 # network burst intervals (uses network_bars_L/R). Turn off if you want a cleaner proxy plot.
 SHOW_PROXY_SHADERS: bool = False
 
-# Method selection (exactly one must be True)
+# ============================================================
+# METHOD SELECTION
+# ============================================================
+# Exactly one detector family should be active.
 maxisi_toggle = False
 alpha_meanisi_toggle = False
 rankSurprise_toggle = True
 RS_region_burst_toggle = True
 plot_network_bursts = False
 RS_NETWORK_ONSETS_TOGGLE = True
-RUN_REGION_EXCLUSION_STUDY = False  # Leave-K-out span overlap vs GT (reads existing CSVs)
 # If True: network burst span = onset window start + median(burst lengths). Outputs go to *_onset_length folders.
 NETWORK_SPAN_ONSET_PLUS_LENGTH = True
 # If True: region burst span = onset window start + median(burst lengths). Same norm for raster bars and CSVs.
 REGION_SPAN_ONSET_PLUS_LENGTH = True
 
-# Cross-patient region exclusion: patients to exclude from cross-patient summaries/boxplots (e.g. ["s527"]).
-# Per-patient summaries are still run for these; they are only omitted from cross-patient aggregation.
-CROSS_PATIENT_EXCLUDE_PATIENTS: list[str] = ["s510","s512","s527"]
-
 # ============================================================
-# MAXISI PARAMETERS
+# SHARED DETECTION CONSTRAINTS
 # ============================================================
-maxISI_thresholds = [0]
-
-# ISI detection
+# Shared across burst detectors unless a method-specific override is used.
 MIN_SPIKES_IN_BURST = 3
 MIN_BURST_DURATION = 0  # ms
 ibi_merge_factor = 0
 
 # If True: MIN_BURST_DURATION is applied at ALL stages (unit, region, and network).
 # If False (default): it is applied only at the final NETWORK burst level (and in
-# region_exclusion's network spans), leaving unit and region bursts unfiltered
+# saved network spans), leaving unit and region bursts unfiltered
 # by duration. For most analyses you probably want this False so that only
 # short network bursts are removed.
 APPLY_MIN_BURST_DURATION_ALL_STAGES = False
 
-# Filtering
+# Unit quality filtering
 FR_MIN_HZ = 0.8
 SNR_MIN = 1.2
 SNR_MAX = 25
@@ -362,17 +334,23 @@ RS_OFFSET_NULL_SEED: int = 123
 # If None, defaults to the estimated recording duration for that side (from latest burst end time).
 RS_OFFSET_NULL_MAX_OFFSET_MS: float | None = 10000.0
 
-# Stage 1 WIN-SHUFF null (Stella et al., eNeuro 2022): optional single-surrogate
-# reference ISI pool from the same spike train (breaks fine-scale burst structure).
-# RS_WIN_SHUFF_WINDOW_MS = shuffle window Δ_ws; RS_WIN_SHUFF_BIN_MS = inner bin b (must divide window evenly).
+# Stage 1 core (unit/cluster bursts)
+RS_Limit_stage1 = None
+RS_Percentile_Limit_stage1 = 75
+RS_alpha_percentage_stage1 = 0.08
+RS_alpha_stage1 = -np.log(RS_alpha_percentage_stage1)
+
+# Stage 1 WIN-SHUFF null (Stella et al., eNeuro 2022)
+# Optional single-surrogate reference ISI pool from the same spike train.
+# RS_WIN_SHUFF_WINDOW_MS = shuffle window Δ_ws; RS_WIN_SHUFF_BIN_MS = inner bin b.
 RS_WIN_SHUFF_STAGE1_ENABLE: bool = True
 RS_WIN_SHUFF_WINDOW_MS: float = 200.0
 RS_WIN_SHUFF_BIN_MS: float = 10.0
 RS_WIN_SHUFF_SEED: int = 456
-# If True, derive WIN-SHUFF sizes from recording length:
+# Auto sizing from recording duration:
 #   window_ms = AUTO_WINDOW_FRACTION_RECORDING * recording_ms
 #   bin_ms    = AUTO_BIN_FRACTION_OF_WINDOW   * window_ms
-# then clip to min/max bounds and snap so window/bin is an integer count.
+# then clipped to min/max bounds and snapped to an integer bin count.
 RS_WIN_SHUFF_AUTO_FROM_RECORDING: bool = True
 RS_WIN_SHUFF_AUTO_WINDOW_FRACTION_RECORDING: float = 0.10
 RS_WIN_SHUFF_AUTO_BIN_FRACTION_OF_WINDOW: float = 0.10
@@ -381,12 +359,6 @@ RS_WIN_SHUFF_AUTO_WINDOW_MAX_MS: float = 10000.0
 RS_WIN_SHUFF_AUTO_BIN_MIN_MS: float = 5.0
 RS_WIN_SHUFF_AUTO_BIN_MAX_MS: float = 1000.0
 
-# Stage 1: unit/cluster bursts  
-RS_Limit_stage1 = None
-RS_Percentile_Limit_stage1 = 75
-RS_alpha_percentage_stage1 = 0.08
-RS_alpha_stage1 = -np.log(RS_alpha_percentage_stage1)
-
 # Stage 1 local segmentation (Problem B: slow firing-rate drift)
 # - nonoverlap: disjoint chunks [0,L), [L,2L), ...
 # - sliding: fixed chunk length L with stride L*(1-overlap_fraction)
@@ -394,44 +366,55 @@ RS_alpha_stage1 = -np.log(RS_alpha_percentage_stage1)
 RS_STAGE1_LOCAL_SEGMENT_ENABLE: bool = True
 RS_STAGE1_SEGMENT_MODE: str = "nonoverlap"  # "nonoverlap" | "sliding" | "custom"
 # RS_STAGE1_SEGMENT_MODE: str = "sliding"  # "nonoverlap" | "sliding" | "custom"
+# RS_STAGE1_SEGMENT_MODE: str = "custom"  # "nonoverlap" | "sliding" | "custom"
+
 RS_STAGE1_SEGMENT_LEN_S: float = 45.0
 RS_STAGE1_SEGMENT_OVERLAP_FRACTION: float = 0.5
 RS_STAGE1_SEGMENT_MIN_SPIKES: int = 3
 RS_STAGE1_POSTHOC_MERGE_ENABLE: bool = True
 RS_STAGE1_POSTHOC_MERGE_GAP_MS: float = 20.0
 RS_STAGE1_POSTHOC_DEDUP_IOU_MIN: float = 0.8
+# Interaction notes:
+# - "custom" mode uses only RS_STAGE1_CUSTOM_WINDOWS_S.
+# - overlap + dedup settings are relevant in "sliding" mode.
+# - posthoc merge stitches neighboring detections split by chunk boundaries.
 # Custom windows for Stage-1 segmentation (seconds, absolute recording time).
 # Used only when RS_STAGE1_SEGMENT_MODE == "custom".
 RS_STAGE1_CUSTOM_WINDOWS_S: list[tuple[float, float]] = []
-# Region-level
+
+# Stage 2: region-level
 RS_Limit_region = None
 RS_Percentile_Limit_region = 75
 RS_alpha_percentage_region = 0.05
 RS_alpha_region = -np.log(RS_alpha_percentage_region)
 
-# Network-level
+# Stage 3: network-level
 RS_Limit_network = None
 RS_Percentile_Limit_network = 75
 RS_alpha_percentage_network = 0.03
 RS_alpha_network = -np.log(RS_alpha_percentage_network)
 
-# Channel filtering for region/network bursts
+# Participation filters for region/network bursts
 MIN_UNIQUE_CHANNELS_REGION = 1
 MIN_UNIQUE_CHANNELS_NETWORK = 1
 # Region-level participation requirement for network bursts.
 # 1 preserves current behavior; >=2 enforces cross-region network events.
 MIN_UNIQUE_REGIONS_NETWORK = 1
 
-RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02), (0.08,    0.05,    0.03)] # (stage1,  region,  network)
-# RS_ALPHA_SETS = [ (0.08,    0.05,    0.02)] # (stage1,  region,  network)
+# Parameter sweeps
+RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02), (0.08,    0.05,    0.03)] # (stage1, region, network)
 # Optional sweep for Stage-1 WIN-SHUFF parameters (window_ms, bin_ms).
 # These are iterated similarly to RS_ALPHA_SETS in main.py when
 # RS_WIN_SHUFF_AUTO_FROM_RECORDING is False (fixed-size mode).
 WIN_SHUFF_PARAM_SETS = [(500.0, 25.0)]  # (window_ms, bin_ms)
 
 # ============================================================
-# ALPHA MEAN-ISI PARAMETERS
+# ALTERNATIVE DETECTOR PARAMETERS
 # ============================================================
+# maxISI detector
+maxISI_thresholds = [0]
+
+# alpha-mean-ISI detector
 ALPHA_MAXISI = 0.2
 MIN_MAXISI_MS = 5
 MAX_MAXISI_MS = 100
