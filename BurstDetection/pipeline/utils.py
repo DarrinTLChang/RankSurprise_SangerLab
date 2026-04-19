@@ -340,6 +340,8 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
             "RS_offset_null_seed": int(RS_OFFSET_NULL_SEED),
             "RS_offset_null_max_offset_ms": RS_OFFSET_NULL_MAX_OFFSET_MS,
             "RS_win_shuff_stage1": bool(RS_WIN_SHUFF_STAGE1_ENABLE),
+            "RS_win_shuff_window_ms": float(RS_WIN_SHUFF_WINDOW_MS),
+            "RS_win_shuff_bin_ms": float(RS_WIN_SHUFF_BIN_MS),
         })
 
     return common
@@ -378,6 +380,12 @@ def run_tag_from_params(params: dict) -> str:
         if params["pooling"]:
             parts.append("pooled")
     elif m == "rankSurprise":
+        def _fmt_num(v: float) -> str:
+            fv = float(v)
+            if np.isfinite(fv) and abs(fv - round(fv)) < 1e-9:
+                return str(int(round(fv)))
+            return f"{fv:g}"
+
         ac = float(params["RS_alpha_cluster"])
         ar = float(params["RS_alpha_region"])
         an = float(params["RS_alpha_network"])
@@ -399,7 +407,9 @@ def run_tag_from_params(params: dict) -> str:
         if params.get("RS_offset_null"):
             toggles += "__offNull" if toggles else "offNull"
         if params.get("RS_win_shuff_stage1"):
-            toggles += "__win_shuff" if toggles else "win_shuff"
+            win_w = _fmt_num(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
+            win_b = _fmt_num(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
+            toggles += f"__win({win_w},{win_b})" if toggles else f"win({win_w},{win_b})"
         tag = f"{head}_{mins}_{common_suffix}{toggles}"
         parts += [tag]
         if params["pooling"]:
@@ -421,6 +431,12 @@ def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bo
     if m != "rankSurprise":
         # For now, only RS is used for KS runs; fall back to default naming.
         return run_tag_from_params(params)
+
+    def _fmt_num(v: float) -> str:
+        fv = float(v)
+        if np.isfinite(fv) and abs(fv - round(fv)) < 1e-9:
+            return str(int(round(fv)))
+        return f"{fv:g}"
 
     ac = float(params["RS_alpha_cluster"])
     ar = float(params["RS_alpha_region"])
@@ -448,7 +464,9 @@ def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bo
     if params.get("network_burst"):
         toggles += "__network" if toggles else "_network"
     if params.get("RS_win_shuff_stage1"):
-        toggles += "__win_shuff" if toggles else "_win_shuff"
+        win_w = _fmt_num(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
+        win_b = _fmt_num(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
+        toggles += f"__win({win_w},{win_b})" if toggles else f"_win({win_w},{win_b})"
 
     return f"{head}{flags_str}_{mins}{toggles}"
 

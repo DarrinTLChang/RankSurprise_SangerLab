@@ -932,52 +932,67 @@ if __name__ == "__main__":
 
     t_all0 = time.perf_counter()
 
+    win_shuff_param_sets = list(getattr(cfg, "WIN_SHUFF_PARAM_SETS", []))
+    if not win_shuff_param_sets:
+        win_shuff_param_sets = [(float(RS_WIN_SHUFF_WINDOW_MS), float(RS_WIN_SHUFF_BIN_MS))]
+
     for a_stage1, a_region, a_network in RS_ALPHA_SETS:
         print(
             f"\n=== RS alphas: stage1={a_stage1}, region={a_region}, network={a_network} ===",
             flush=True,
         )
-        for mod in (cfg, detection, region_exclusion, utils):
-            mod.RS_alpha_percentage_stage1 = a_stage1
-            mod.RS_alpha_stage1 = -np.log(a_stage1)
-            mod.RS_alpha_percentage_region = a_region
-            mod.RS_alpha_region = -np.log(a_region)
-            mod.RS_alpha_percentage_network = a_network
-            mod.RS_alpha_network = -np.log(a_network)
-
-        for mat_file_raw in dataset_entries:
-            mat_file = _resolve_dataset_entry(mat_file_raw)
-            patient, period = dataset_labels_any(mat_file)
-
-            print(f"\nRunning {patient}, {period}", flush=True)
-            print("Spike :", mat_file, flush=True)
-
-            EMG_MAT = None
-            NOTES_TXT = None
-            if PLOT_EMG and parse_dataset_spec(mat_file)[0] != "kilosort":
-                emg_candidate, notes_candidate = derive_emg_notes_from_spiketime(
-                    parse_dataset_spec(mat_file)[1]
+        for ws_ms, bin_ms in win_shuff_param_sets:
+            ws_ms = float(ws_ms)
+            bin_ms = float(bin_ms)
+            if RS_WIN_SHUFF_STAGE1_ENABLE:
+                print(
+                    f"=== WIN-SHUFF: window={ws_ms:g}ms, bin={bin_ms:g}ms ===",
+                    flush=True,
                 )
-                if Path(emg_candidate).exists():
-                    EMG_MAT = emg_candidate
-                    print("EMG   :", EMG_MAT)
-                else:
-                    print("EMG   : not found, skipping")
-                if Path(notes_candidate).exists():
-                    NOTES_TXT = notes_candidate
-                    print("Notes :", NOTES_TXT)
-                else:
-                    print("Notes : not found, skipping")
 
-            for base_thr in maxISI_thresholds:
-                for bin_s in coactivity_bins_s:
-                    run_single_dataset(
-                        mat_file=mat_file,
-                        base_thr=base_thr,
-                        coactivity_bins_s=bin_s,
-                        EMG_MAT=EMG_MAT,
-                        NOTES_TXT=NOTES_TXT,
+            for mod in (cfg, detection, region_exclusion, utils):
+                mod.RS_alpha_percentage_stage1 = a_stage1
+                mod.RS_alpha_stage1 = -np.log(a_stage1)
+                mod.RS_alpha_percentage_region = a_region
+                mod.RS_alpha_region = -np.log(a_region)
+                mod.RS_alpha_percentage_network = a_network
+                mod.RS_alpha_network = -np.log(a_network)
+                mod.RS_WIN_SHUFF_WINDOW_MS = ws_ms
+                mod.RS_WIN_SHUFF_BIN_MS = bin_ms
+
+            for mat_file_raw in dataset_entries:
+                mat_file = _resolve_dataset_entry(mat_file_raw)
+                patient, period = dataset_labels_any(mat_file)
+
+                print(f"\nRunning {patient}, {period}", flush=True)
+                print("Spike :", mat_file, flush=True)
+
+                EMG_MAT = None
+                NOTES_TXT = None
+                if PLOT_EMG and parse_dataset_spec(mat_file)[0] != "kilosort":
+                    emg_candidate, notes_candidate = derive_emg_notes_from_spiketime(
+                        parse_dataset_spec(mat_file)[1]
                     )
+                    if Path(emg_candidate).exists():
+                        EMG_MAT = emg_candidate
+                        print("EMG   :", EMG_MAT)
+                    else:
+                        print("EMG   : not found, skipping")
+                    if Path(notes_candidate).exists():
+                        NOTES_TXT = notes_candidate
+                        print("Notes :", NOTES_TXT)
+                    else:
+                        print("Notes : not found, skipping")
+
+                for base_thr in maxISI_thresholds:
+                    for bin_s in coactivity_bins_s:
+                        run_single_dataset(
+                            mat_file=mat_file,
+                            base_thr=base_thr,
+                            coactivity_bins_s=bin_s,
+                            EMG_MAT=EMG_MAT,
+                            NOTES_TXT=NOTES_TXT,
+                        )
 
     elapsed_all_s = time.perf_counter() - t_all0
     print(

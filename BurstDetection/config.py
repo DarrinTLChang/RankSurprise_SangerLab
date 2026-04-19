@@ -390,8 +390,11 @@ RS_alpha_network = -np.log(RS_alpha_percentage_network)
 MIN_UNIQUE_CHANNELS_REGION = 1
 MIN_UNIQUE_CHANNELS_NETWORK = 0
 
-RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02),(0.08,    0.05,    0.03),] # (stage1,  region,  network)
+RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02)] # (stage1,  region,  network)
 # RS_ALPHA_SETS = [ (0.03,    0.02,    0.02)] # (stage1,  region,  network)
+# Optional sweep for Stage-1 WIN-SHUFF parameters (window_ms, bin_ms).
+# These are iterated similarly to RS_ALPHA_SETS in main.py.
+WIN_SHUFF_PARAM_SETS = [(200.0, 10.0),(500.0, 25.0)]  # (window_ms, bin_ms)
 
 # ============================================================
 # ALPHA MEAN-ISI PARAMETERS
