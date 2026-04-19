@@ -19,7 +19,7 @@ param(
     [string]$CondaEnv = "",
     [int[]]$Indices = @(),
     [string[]]$ContainsJobs = @(),
-    [ValidateSet("", "kilosort", "kilosortset")]
+    [ValidateSet("", "mat", "kilosort", "kilosortset")]
     [string]$Kind = ""
 )
 

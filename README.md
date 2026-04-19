@@ -82,6 +82,8 @@ python main.py --only-dataset-kind kilosortset
 
 Output roots are configured in `config.py` (for example `OUTPUT_ROOT_RS`, `OUTPUT_ROOT_MAXISI`, `OUTPUT_ROOT_ALPHA_MEANISI`), and run directories are tagged with the active parameter set.
 
+Burst raster outputs include four HTML views: `stage1_unit_burst.html`, `stage2_region_burst.html`, `stage3_network_burst.html`, and `overview_region_burst.html`.
+
 See `config.py` for the definitive output root and plotting toggles.
 
 ## Configuration Notes

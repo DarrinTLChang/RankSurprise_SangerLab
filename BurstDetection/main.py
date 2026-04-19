@@ -713,13 +713,25 @@ def run_single_dataset(
 
         # Stage 3: network-filtered bursts with network bars only.
         _make_and_save_stage_figure(
-            name="stage3_netowrk_burst",
+            name="stage3_network_burst",
             bursts_L=stage3_network_bursts_L,
             bursts_R=stage3_network_bursts_R,
             net_bars_L=network_bars_L,
             net_bars_R=network_bars_R,
             reg_bars_L={},
             reg_bars_R={},
+            duplicate_for_gallery=False,
+        )
+
+        # Overview: restored full-context plot with region + network bars.
+        _make_and_save_stage_figure(
+            name="overview_region_burst",
+            bursts_L=all_bursts_L,
+            bursts_R=all_bursts_R,
+            net_bars_L=network_bars_L,
+            net_bars_R=network_bars_R,
+            reg_bars_L=region_bars_by_region_L,
+            reg_bars_R=region_bars_by_region_R,
             duplicate_for_gallery=True,
         )
 
