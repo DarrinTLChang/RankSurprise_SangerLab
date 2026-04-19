@@ -339,6 +339,7 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
             "RS_offset_null": bool(RS_OFFSET_NULL_ENABLE),
             "RS_offset_null_seed": int(RS_OFFSET_NULL_SEED),
             "RS_offset_null_max_offset_ms": RS_OFFSET_NULL_MAX_OFFSET_MS,
+            "RS_win_shuff_stage1": bool(RS_WIN_SHUFF_STAGE1_ENABLE),
         })
 
     return common
@@ -397,6 +398,8 @@ def run_tag_from_params(params: dict) -> str:
             toggles += "__network" if toggles else "network"
         if params.get("RS_offset_null"):
             toggles += "__offNull" if toggles else "offNull"
+        if params.get("RS_win_shuff_stage1"):
+            toggles += "__win_shuff" if toggles else "win_shuff"
         tag = f"{head}_{mins}_{common_suffix}{toggles}"
         parts += [tag]
         if params["pooling"]:
@@ -444,6 +447,8 @@ def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bo
         toggles += "_region"
     if params.get("network_burst"):
         toggles += "__network" if toggles else "_network"
+    if params.get("RS_win_shuff_stage1"):
+        toggles += "__win_shuff" if toggles else "_win_shuff"
 
     return f"{head}{flags_str}_{mins}{toggles}"
 

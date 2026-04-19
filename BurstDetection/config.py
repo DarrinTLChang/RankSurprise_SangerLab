@@ -360,6 +360,14 @@ RS_OFFSET_NULL_SEED: int = 123
 # If None, defaults to the estimated recording duration for that side (from latest burst end time).
 RS_OFFSET_NULL_MAX_OFFSET_MS: float | None = 1000.0
 
+# Stage 1 WIN-SHUFF null (Stella et al., eNeuro 2022): optional single-surrogate
+# reference ISI pool from the same spike train (breaks fine-scale burst structure).
+# RS_WIN_SHUFF_WINDOW_MS = shuffle window Δ_ws; RS_WIN_SHUFF_BIN_MS = inner bin b (must divide window evenly).
+RS_WIN_SHUFF_STAGE1_ENABLE: bool = True
+RS_WIN_SHUFF_WINDOW_MS: float = 200.0
+RS_WIN_SHUFF_BIN_MS: float = 10.0
+RS_WIN_SHUFF_SEED: int = 456
+
 # Stage 1: unit/cluster bursts  
 RS_Limit_stage1 = None
 RS_Percentile_Limit_stage1 = 75
@@ -383,6 +391,7 @@ MIN_UNIQUE_CHANNELS_REGION = 1
 MIN_UNIQUE_CHANNELS_NETWORK = 0
 
 RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02),(0.08,    0.05,    0.03),] # (stage1,  region,  network)
+# RS_ALPHA_SETS = [ (0.03,    0.02,    0.02)] # (stage1,  region,  network)
 
 # ============================================================
 # ALPHA MEAN-ISI PARAMETERS

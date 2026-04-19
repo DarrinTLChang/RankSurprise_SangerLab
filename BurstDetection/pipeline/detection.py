@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -164,6 +165,82 @@ def _build_offset_reference_train_ms(
     return out
 
 
+def win_shuff_spike_times_ms(
+    spiketimes_ms: np.ndarray,
+    *,
+    window_ms: float,
+    bin_ms: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """
+    One WIN-SHUFF surrogate (Stella et al., eNeuro 2022): exclusive windows of length
+    ``window_ms``; within each window, spikes are binned into ``bin_ms`` bins, bin
+    occupancy counts are permuted across bins, then spike times are redrawn i.i.d.
+    uniform within each bin. Same spike count as input.
+
+    Following the paper's window construction, only full windows are shuffled. Spikes
+    in the trailing remainder shorter than one window are kept unchanged.
+    """
+    t = np.asarray(spiketimes_ms, dtype=float).ravel()
+    t = t[np.isfinite(t)]
+    if t.size == 0:
+        return t
+    t = np.sort(t)
+    W = float(window_ms)
+    b = float(bin_ms)
+    if W <= 0 or b <= 0:
+        raise ValueError("window_ms and bin_ms must be positive")
+    n_sub = int(round(W / b))
+    if abs(n_sub * b - W) > 1e-6 * max(W, 1.0):
+        raise ValueError(
+            f"RS_WIN_SHUFF_WINDOW_MS ({W}) must be an integer multiple of RS_WIN_SHUFF_BIN_MS ({b})"
+        )
+
+    t0 = float(t[0])
+    t1 = float(t[-1])
+    out_list: list[np.ndarray] = []
+
+    start = t0
+    while start + W <= t1 + 1e-9:
+        lo, hi = start, start + W
+        m = (t >= lo) & (t < hi)
+        idx = np.flatnonzero(m)
+        seg = t[idx]
+        counts = np.zeros(n_sub, dtype=int)
+        for tm in seg:
+            j = int(np.floor((tm - lo) / b))
+            if j < 0:
+                j = 0
+            elif j >= n_sub:
+                j = n_sub - 1
+            counts[j] += 1
+        perm = rng.permutation(n_sub)
+        counts_shuf = counts[perm]
+        new_spikes: list[float] = []
+        for j in range(n_sub):
+            c = int(counts_shuf[j])
+            if c <= 0:
+                continue
+            left = lo + j * b
+            right = left + b
+            new_spikes.extend(rng.uniform(left, right, size=c).tolist())
+        if new_spikes:
+            out_list.append(np.asarray(new_spikes, dtype=float))
+        start += W
+
+    # Trailing partial window is left unchanged.
+    if start <= t1:
+        m_rem = t >= start
+        rem = t[np.flatnonzero(m_rem)]
+        if rem.size:
+            out_list.append(rem.copy())
+
+    if not out_list:
+        return t.copy()
+    out = np.sort(np.concatenate(out_list))
+    return out
+
+
 def RS_detect_burst(
     spiketimes,
     limit=None,
@@ -172,6 +249,7 @@ def RS_detect_burst(
     RS_Percentile_Limit=75,
     *,
     baseline_spiketimes=None,
+    reference_isis: np.ndarray | None = None,
 ):
     """Detect bursts in spiketimes using Rank-Surprise method.
 
@@ -179,6 +257,11 @@ def RS_detect_burst(
       start:  spike number of burst start for each burst detected
       length: burst length for each burst detected (in spikes)
       RS:     rank surprise value for each burst detected.
+
+    If ``reference_isis`` is provided (non-empty), ranks and optional ``limit``
+    percentile are taken from that pool (Stage-1 WIN-SHUFF null). Otherwise if
+    ``baseline_spiketimes`` is set, behavior follows the offset-merged baseline path.
+    Otherwise ranks use the train's own ISIs (classic RS).
     """
     q_lim = 30
     l_min = min_spikes
@@ -192,9 +275,23 @@ def RS_detect_burst(
     ISI = np.asarray(ISI, dtype=float)
     ISI = ISI[np.isfinite(ISI)]
 
+    # Stage-1 WIN-SHUFF: reference ISI pool (same train, one shuffled surrogate).
+    ref_iso = None
+    if reference_isis is not None:
+        ref_iso = np.asarray(reference_isis, dtype=float)
+        ref_iso = ref_iso[np.isfinite(ref_iso)]
+
+    if ref_iso is not None and ref_iso.size > 0:
+        ref_for_ranks = np.sort(ref_iso)
+        N = int(ref_for_ranks.size)
+        if limit is None:
+            limit = (
+                np.percentile(ref_for_ranks, RS_Percentile_Limit) if ref_for_ranks.size else 0.0
+            )
+        R = _ranks_against_reference(ISI, ref_for_ranks)
     # Optional: compute ranks and (percentile) limit against a baseline ISI distribution
     # (used for higher-level RS where we want an independence-preserving null).
-    if baseline_spiketimes is not None:
+    elif baseline_spiketimes is not None:
         base = np.asarray(baseline_spiketimes, dtype=float)
         base = base[np.isfinite(base)]
         base = np.sort(base)
@@ -394,6 +491,15 @@ class BurstResults:
     all_bursts: list[dict[str, Any]] = field(default_factory=list)
     all_bursts_L: list[dict[str, Any]] = field(default_factory=list)
     all_bursts_R: list[dict[str, Any]] = field(default_factory=list)
+    stage1_unit_bursts: list[dict[str, Any]] = field(default_factory=list)
+    stage1_unit_bursts_L: list[dict[str, Any]] = field(default_factory=list)
+    stage1_unit_bursts_R: list[dict[str, Any]] = field(default_factory=list)
+    stage2_region_bursts: list[dict[str, Any]] = field(default_factory=list)
+    stage2_region_bursts_L: list[dict[str, Any]] = field(default_factory=list)
+    stage2_region_bursts_R: list[dict[str, Any]] = field(default_factory=list)
+    stage3_network_bursts: list[dict[str, Any]] = field(default_factory=list)
+    stage3_network_bursts_L: list[dict[str, Any]] = field(default_factory=list)
+    stage3_network_bursts_R: list[dict[str, Any]] = field(default_factory=list)
     region_windows: dict = field(default_factory=dict)
     region_windows_L: dict = field(default_factory=dict)
     region_windows_R: dict = field(default_factory=dict)
@@ -453,6 +559,9 @@ def rs_burst_detection(
         return res
 
     all_bursts_list: list[list[dict]] = []
+    stage1_unit_bursts_list: list[list[dict]] = []
+    stage2_region_bursts_list: list[list[dict]] = []
+    stage3_network_bursts_list: list[list[dict]] = []
     region_window_list: list[dict] = []
     network_window_list: list[list] = []
     network_bars_temp: dict[str, list[tuple[float, float]]] = {}
@@ -462,12 +571,28 @@ def rs_burst_detection(
         # Stage 1: unit-level bursts
         unit_bursts: list[dict] = []
         for elec, cl, spk in iter_units_fn(spike_struct_side, STATS):
+            ref_isis = None
+            if bool(RS_WIN_SHUFF_STAGE1_ENABLE):
+                seed_unit = int(RS_WIN_SHUFF_SEED) ^ (
+                    zlib.adler32(f"{elec}|{int(cl)}".encode()) & 0xFFFFFFFF
+                )
+                sur = win_shuff_spike_times_ms(
+                    spk,
+                    window_ms=float(RS_WIN_SHUFF_WINDOW_MS),
+                    bin_ms=float(RS_WIN_SHUFF_BIN_MS),
+                    rng=np.random.default_rng(seed_unit),
+                )
+                if sur.size >= 2:
+                    ref_isis = np.diff(sur)
+                else:
+                    ref_isis = None
             start_idx, length_spikes, RSvals = RS_detect_burst(
                 spk,
                 limit=RS_Limit_stage1,
                 RSalpha=RS_alpha_stage1,
                 min_spikes=MIN_SPIKES_IN_BURST,
                 RS_Percentile_Limit=RS_Percentile_Limit_stage1,
+                reference_isis=ref_isis,
             )
             for s, L, rs in zip(start_idx, length_spikes, RSvals):
                 s = int(s); e = int(s + L - 1)
@@ -489,6 +614,8 @@ def rs_burst_detection(
                         "Method": "RankSurprise",
                     })
 
+        # Keep an untouched Stage-1 snapshot for dedicated plotting.
+        stage1_unit_bursts = [dict(b) for b in unit_bursts]
         all_bursts = unit_bursts
         # RS unit-level CSVs: unified burst fields
         unit_csv_rows = [
@@ -632,6 +759,7 @@ def rs_burst_detection(
 
             all_bursts = all_bursts_region
 
+        stage2_region_bursts = [dict(b) for b in all_bursts]
         region_window_list.append(region_windows_by_region)
 
         # Stage 2: network-level bursts
@@ -726,12 +854,25 @@ def rs_burst_detection(
             if plot_network_bursts:
                 all_bursts = [b for b in all_bursts if b.get("IsNetworkBurst")]
 
+        stage3_network_bursts = [dict(b) for b in all_bursts if b.get("IsNetworkBurst")]
         network_window_list.append(network_windows)
+        stage1_unit_bursts_list.append(stage1_unit_bursts)
+        stage2_region_bursts_list.append(stage2_region_bursts)
+        stage3_network_bursts_list.append(stage3_network_bursts)
         all_bursts_list.append(all_bursts)
 
     res.all_bursts = all_bursts_list[0]
     res.all_bursts_L = all_bursts_list[1]
     res.all_bursts_R = all_bursts_list[2]
+    res.stage1_unit_bursts = stage1_unit_bursts_list[0]
+    res.stage1_unit_bursts_L = stage1_unit_bursts_list[1]
+    res.stage1_unit_bursts_R = stage1_unit_bursts_list[2]
+    res.stage2_region_bursts = stage2_region_bursts_list[0]
+    res.stage2_region_bursts_L = stage2_region_bursts_list[1]
+    res.stage2_region_bursts_R = stage2_region_bursts_list[2]
+    res.stage3_network_bursts = stage3_network_bursts_list[0]
+    res.stage3_network_bursts_L = stage3_network_bursts_list[1]
+    res.stage3_network_bursts_R = stage3_network_bursts_list[2]
     res.region_windows = region_window_list[0]
     res.region_windows_L = region_window_list[1]
     res.region_windows_R = region_window_list[2]

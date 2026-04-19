@@ -293,6 +293,12 @@ def run_single_dataset(
     all_bursts = bd.all_bursts
     all_bursts_L = bd.all_bursts_L
     all_bursts_R = bd.all_bursts_R
+    stage1_unit_bursts_L = bd.stage1_unit_bursts_L
+    stage1_unit_bursts_R = bd.stage1_unit_bursts_R
+    stage2_region_bursts_L = bd.stage2_region_bursts_L
+    stage2_region_bursts_R = bd.stage2_region_bursts_R
+    stage3_network_bursts_L = bd.stage3_network_bursts_L
+    stage3_network_bursts_R = bd.stage3_network_bursts_R
     network_windows_L = bd.network_windows_L
     network_windows_R = bd.network_windows_R
     network_bars_L = bd.network_bars_L
@@ -650,44 +656,91 @@ def run_single_dataset(
             bottom_labels = None
             bottom_y_range = None
 
-        fig = make_sangerlab_presentation_figure(
-            spike_struct_L=spike_struct_L,
-            spike_struct_R=spike_struct_R,
-            STATS=STATS,
-            all_bursts_L=all_bursts_L,
-            all_bursts_R=all_bursts_R,
-            record_len_s=record_len_s,
-            patient=patient,
-            period=period,
-            bin_s=coactivity_bins_s,
-            stride_s=stride_s,
-            run_params=run_params,
-            presentation_mode=presentation_mode,
-            allowed_clusters=allowed_clusters,
-            emg_t_s=bottom_t,
-            emg_traces_L=bottom_L,
-            emg_traces_R=bottom_R,
-            emg_downsample=bottom_ds,
-            emg_panel_labels=bottom_labels,
-            emg_y_range=bottom_y_range,
-            network_windows_L=network_windows_L,
-            network_windows_R=network_windows_R,
-            network_bars_L=network_bars_L,
-            network_bars_R=network_bars_R,
-            region_windows_by_region_L=region_windows_L,
-            region_windows_by_region_R=region_windows_R,
-            region_bars_by_region_L=region_bars_by_region_L,
-            region_bars_by_region_R=region_bars_by_region_R,
-            disable_bursts=disable_bursts,
-            fr_df_L=fr_df_L,
-            fr_df_R=fr_df_R,
-            show_firing_rate=PLOT_FR,
+        def _make_and_save_stage_figure(
+            *,
+            name: str,
+            bursts_L,
+            bursts_R,
+            net_bars_L,
+            net_bars_R,
+            reg_bars_L,
+            reg_bars_R,
+            duplicate_for_gallery: bool = False,
+        ):
+            fig = make_sangerlab_presentation_figure(
+                spike_struct_L=spike_struct_L,
+                spike_struct_R=spike_struct_R,
+                STATS=STATS,
+                all_bursts_L=bursts_L,
+                all_bursts_R=bursts_R,
+                record_len_s=record_len_s,
+                patient=patient,
+                period=period,
+                bin_s=coactivity_bins_s,
+                stride_s=stride_s,
+                run_params=run_params,
+                presentation_mode=presentation_mode,
+                allowed_clusters=allowed_clusters,
+                emg_t_s=bottom_t,
+                emg_traces_L=bottom_L,
+                emg_traces_R=bottom_R,
+                emg_downsample=bottom_ds,
+                emg_panel_labels=bottom_labels,
+                emg_y_range=bottom_y_range,
+                network_windows_L=network_windows_L,
+                network_windows_R=network_windows_R,
+                network_bars_L=net_bars_L,
+                network_bars_R=net_bars_R,
+                region_windows_by_region_L=region_windows_L,
+                region_windows_by_region_R=region_windows_R,
+                region_bars_by_region_L=reg_bars_L,
+                region_bars_by_region_R=reg_bars_R,
+                disable_bursts=disable_bursts,
+                fr_df_L=fr_df_L,
+                fr_df_R=fr_df_R,
+                show_firing_rate=PLOT_FR,
+            )
+            save_fig_interactive(fig, raster_dir / name)
+            if duplicate_for_gallery and DUPLICATE_SANGER_HTML and DUPLICATE_SANGER_HTML_DIR:
+                tag = _dataset_tag_for_gallery(kind, raw_path, patient)
+                out_base = Path(DUPLICATE_SANGER_HTML_DIR) / tag
+                save_fig_interactive(fig, out_base)
+
+        # Stage 1: unit-level RS bursts only (no region/network bars).
+        _make_and_save_stage_figure(
+            name="stage1_unit_burst",
+            bursts_L=stage1_unit_bursts_L,
+            bursts_R=stage1_unit_bursts_R,
+            net_bars_L=[],
+            net_bars_R=[],
+            reg_bars_L={},
+            reg_bars_R={},
+            duplicate_for_gallery=False,
         )
-        save_fig_interactive(fig, raster_dir / "sangerlab_presentation_LR_coact_EMG")
-        if DUPLICATE_SANGER_HTML and DUPLICATE_SANGER_HTML_DIR:
-            tag = _dataset_tag_for_gallery(kind, raw_path, patient)
-            out_base = Path(DUPLICATE_SANGER_HTML_DIR) / tag
-            save_fig_interactive(fig, out_base)
+
+        # Stage 2: region-filtered bursts with region bars only.
+        _make_and_save_stage_figure(
+            name="stage2_region_burst",
+            bursts_L=stage2_region_bursts_L,
+            bursts_R=stage2_region_bursts_R,
+            net_bars_L=[],
+            net_bars_R=[],
+            reg_bars_L=region_bars_by_region_L,
+            reg_bars_R=region_bars_by_region_R,
+            duplicate_for_gallery=False,
+        )
+
+        # Stage 3: network-filtered bursts with network bars only.
+        _make_and_save_stage_figure(
+            name="stage3_netowrk_burst",
+            bursts_L=stage3_network_bursts_L,
+            bursts_R=stage3_network_bursts_R,
+            net_bars_L=network_bars_L,
+            net_bars_R=network_bars_R,
+            reg_bars_L={},
+            reg_bars_R={},
+            duplicate_for_gallery=True,
+        )
 
     # 2) Correlation graph: raster + hemi proxy (p-units) + FR
     if PLOT_CORRELATION_GRAPH and t_proxy is not None and proxy_traces_L is not None and proxy_traces_R is not None:
