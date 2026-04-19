@@ -137,6 +137,40 @@ def _resolve_dataset_entry(spec: str) -> str:
     return str(resolved)
 
 
+def _resolve_win_shuff_params_ms(record_len_s: float) -> tuple[float, float]:
+    """
+    Effective Stage-1 WIN-SHUFF params for one recording.
+
+    - Fixed mode: use RS_WIN_SHUFF_WINDOW_MS / RS_WIN_SHUFF_BIN_MS.
+    - Auto mode: derive from recording length (fractions), clamp to min/max bounds,
+      then snap so window/bin is an integer count.
+    """
+    ws_ms = float(cfg.RS_WIN_SHUFF_WINDOW_MS)
+    bin_ms = float(cfg.RS_WIN_SHUFF_BIN_MS)
+
+    if bool(cfg.RS_WIN_SHUFF_STAGE1_ENABLE) and bool(getattr(cfg, "RS_WIN_SHUFF_AUTO_FROM_RECORDING", False)):
+        rec_ms = max(float(record_len_s) * 1000.0, 1e-9)
+        ws_ms = rec_ms * float(getattr(cfg, "RS_WIN_SHUFF_AUTO_WINDOW_FRACTION_RECORDING", 0.10))
+        bin_ms = ws_ms * float(getattr(cfg, "RS_WIN_SHUFF_AUTO_BIN_FRACTION_OF_WINDOW", 0.10))
+
+        ws_ms = float(np.clip(
+            ws_ms,
+            float(getattr(cfg, "RS_WIN_SHUFF_AUTO_WINDOW_MIN_MS", 50.0)),
+            float(getattr(cfg, "RS_WIN_SHUFF_AUTO_WINDOW_MAX_MS", 1000.0)),
+        ))
+        bin_ms = float(np.clip(
+            bin_ms,
+            float(getattr(cfg, "RS_WIN_SHUFF_AUTO_BIN_MIN_MS", 1.0)),
+            float(getattr(cfg, "RS_WIN_SHUFF_AUTO_BIN_MAX_MS", 50.0)),
+        ))
+
+    ws_ms = max(ws_ms, 1e-6)
+    bin_ms = max(min(bin_ms, ws_ms), 1e-6)
+    n_bins = max(1, int(round(ws_ms / bin_ms)))
+    bin_ms = ws_ms / float(n_bins)
+    return ws_ms, bin_ms
+
+
 def run_single_dataset(
     mat_file: str,
     base_thr: float,
@@ -174,6 +208,21 @@ def run_single_dataset(
     thr_method_name, thr_method_id = get_thresholding_method_name()
     record_len_s = compute_recording_duration_s(spike_struct)
     fs = float((np.ravel(spike_struct)[0]).dataSegmentLength)
+
+    # Per-recording WIN-SHUFF parameter resolution (fixed vs auto-from-recording).
+    if thr_method_name == "rankSurprise":
+        ws_ms_eff, bin_ms_eff = _resolve_win_shuff_params_ms(record_len_s)
+        for mod in (cfg, detection, region_exclusion, utils):
+            mod.RS_WIN_SHUFF_WINDOW_MS = float(ws_ms_eff)
+            mod.RS_WIN_SHUFF_BIN_MS = float(bin_ms_eff)
+        if bool(cfg.RS_WIN_SHUFF_STAGE1_ENABLE):
+            if bool(getattr(cfg, "RS_WIN_SHUFF_AUTO_FROM_RECORDING", False)):
+                print(
+                    f"• WIN-SHUFF(auto): window={ws_ms_eff:g}ms, bin={bin_ms_eff:g}ms "
+                    f"(record={record_len_s:.3f}s)"
+                )
+            else:
+                print(f"• WIN-SHUFF(fixed): window={ws_ms_eff:g}ms, bin={bin_ms_eff:g}ms")
 
     # New output layout: one root per method.
     if thr_method_name == "rankSurprise":
@@ -932,9 +981,13 @@ if __name__ == "__main__":
 
     t_all0 = time.perf_counter()
 
-    win_shuff_param_sets = list(getattr(cfg, "WIN_SHUFF_PARAM_SETS", []))
-    if not win_shuff_param_sets:
+    if bool(getattr(cfg, "RS_WIN_SHUFF_AUTO_FROM_RECORDING", False)):
+        # Auto mode resolves per recording in run_single_dataset; keep a single pass here.
         win_shuff_param_sets = [(float(RS_WIN_SHUFF_WINDOW_MS), float(RS_WIN_SHUFF_BIN_MS))]
+    else:
+        win_shuff_param_sets = list(getattr(cfg, "WIN_SHUFF_PARAM_SETS", []))
+        if not win_shuff_param_sets:
+            win_shuff_param_sets = [(float(RS_WIN_SHUFF_WINDOW_MS), float(RS_WIN_SHUFF_BIN_MS))]
 
     for a_stage1, a_region, a_network in RS_ALPHA_SETS:
         print(
@@ -945,10 +998,13 @@ if __name__ == "__main__":
             ws_ms = float(ws_ms)
             bin_ms = float(bin_ms)
             if RS_WIN_SHUFF_STAGE1_ENABLE:
-                print(
-                    f"=== WIN-SHUFF: window={ws_ms:g}ms, bin={bin_ms:g}ms ===",
-                    flush=True,
-                )
+                if bool(getattr(cfg, "RS_WIN_SHUFF_AUTO_FROM_RECORDING", False)):
+                    print("=== WIN-SHUFF: auto from recording length ===", flush=True)
+                else:
+                    print(
+                        f"=== WIN-SHUFF: window={ws_ms:g}ms, bin={bin_ms:g}ms ===",
+                        flush=True,
+                    )
 
             for mod in (cfg, detection, region_exclusion, utils):
                 mod.RS_alpha_percentage_stage1 = a_stage1

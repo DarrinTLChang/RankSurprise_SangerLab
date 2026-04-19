@@ -363,10 +363,21 @@ RS_OFFSET_NULL_MAX_OFFSET_MS: float | None = 1000.0
 # Stage 1 WIN-SHUFF null (Stella et al., eNeuro 2022): optional single-surrogate
 # reference ISI pool from the same spike train (breaks fine-scale burst structure).
 # RS_WIN_SHUFF_WINDOW_MS = shuffle window Δ_ws; RS_WIN_SHUFF_BIN_MS = inner bin b (must divide window evenly).
-RS_WIN_SHUFF_STAGE1_ENABLE: bool = True
+RS_WIN_SHUFF_STAGE1_ENABLE: bool = False
 RS_WIN_SHUFF_WINDOW_MS: float = 200.0
 RS_WIN_SHUFF_BIN_MS: float = 10.0
 RS_WIN_SHUFF_SEED: int = 456
+# If True, derive WIN-SHUFF sizes from recording length:
+#   window_ms = AUTO_WINDOW_FRACTION_RECORDING * recording_ms
+#   bin_ms    = AUTO_BIN_FRACTION_OF_WINDOW   * window_ms
+# then clip to min/max bounds and snap so window/bin is an integer count.
+RS_WIN_SHUFF_AUTO_FROM_RECORDING: bool = False
+RS_WIN_SHUFF_AUTO_WINDOW_FRACTION_RECORDING: float = 0.10
+RS_WIN_SHUFF_AUTO_BIN_FRACTION_OF_WINDOW: float = 0.10
+RS_WIN_SHUFF_AUTO_WINDOW_MIN_MS: float = 50.0
+RS_WIN_SHUFF_AUTO_WINDOW_MAX_MS: float = 1000.0
+RS_WIN_SHUFF_AUTO_BIN_MIN_MS: float = 1.0
+RS_WIN_SHUFF_AUTO_BIN_MAX_MS: float = 50.0
 
 # Stage 1: unit/cluster bursts  
 RS_Limit_stage1 = None
@@ -390,11 +401,12 @@ RS_alpha_network = -np.log(RS_alpha_percentage_network)
 MIN_UNIQUE_CHANNELS_REGION = 1
 MIN_UNIQUE_CHANNELS_NETWORK = 0
 
-RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02)] # (stage1,  region,  network)
+RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02), (0.08,    0.05,    0.03)] # (stage1,  region,  network)
 # RS_ALPHA_SETS = [ (0.03,    0.02,    0.02)] # (stage1,  region,  network)
 # Optional sweep for Stage-1 WIN-SHUFF parameters (window_ms, bin_ms).
-# These are iterated similarly to RS_ALPHA_SETS in main.py.
-WIN_SHUFF_PARAM_SETS = [(200.0, 10.0),(500.0, 25.0)]  # (window_ms, bin_ms)
+# These are iterated similarly to RS_ALPHA_SETS in main.py when
+# RS_WIN_SHUFF_AUTO_FROM_RECORDING is False (fixed-size mode).
+WIN_SHUFF_PARAM_SETS = [(500.0, 25.0)]  # (window_ms, bin_ms)
 
 # ============================================================
 # ALPHA MEAN-ISI PARAMETERS
