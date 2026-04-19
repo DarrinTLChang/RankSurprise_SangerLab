@@ -1,28 +1,9 @@
 # BurstDetection: ignore everything except these files and folders (paths relative to BurstDetection/)
 *
 !.gitignore
-!channel_burst_roc.py
-!channel_reduction_study.py
-!compare_proxy_vs_network.py
 !config.py
-!cross_patient_region_exclusion.py
-!CONTEXT.md
-!PAPER_METHODOLOGY_CONTEXT.md
-!PAPER_METHODOLOGY_AGENT_BRIEF.md
-!README.md
-!kilosort_to_spiketime_mat.py
 !main.py
-!onset_triggered_proxy.py
-!plot_proxy_vs_fr_by_patient.py
-!plot_proxy_vs_network_by_patient.py
-!proxy_detection_demo.py
-!proxy_lag_analysis.py
-!proxy_slope_detection.py
 !run_datasets_parallel.ps1
-!proxy_lag_plots/
-!proxy_slope_detection/
-!scripts/
-!csv/
 
 # Pipeline: allow directory then ignore contents except these files
 !pipeline/
@@ -33,7 +14,6 @@ pipeline/*
 !pipeline/emg.py
 !pipeline/isi.py
 !pipeline/plotting.py
-!pipeline/region_exclusion.py
 !pipeline/stats.py
 !pipeline/utils.py
 !pipeline/burst_paths.py
