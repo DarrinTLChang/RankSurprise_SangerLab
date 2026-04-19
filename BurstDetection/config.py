@@ -392,8 +392,8 @@ RS_alpha_stage1 = -np.log(RS_alpha_percentage_stage1)
 # - sliding: fixed chunk length L with stride L*(1-overlap_fraction)
 # - custom: explicit non-overlapping windows from RS_STAGE1_CUSTOM_WINDOWS_S (seconds)
 RS_STAGE1_LOCAL_SEGMENT_ENABLE: bool = True
-# RS_STAGE1_SEGMENT_MODE: str = "nonoverlap"  # "nonoverlap" | "sliding" | "custom"
-RS_STAGE1_SEGMENT_MODE: str = "sliding"  # "nonoverlap" | "sliding" | "custom"
+RS_STAGE1_SEGMENT_MODE: str = "nonoverlap"  # "nonoverlap" | "sliding" | "custom"
+# RS_STAGE1_SEGMENT_MODE: str = "sliding"  # "nonoverlap" | "sliding" | "custom"
 RS_STAGE1_SEGMENT_LEN_S: float = 45.0
 RS_STAGE1_SEGMENT_OVERLAP_FRACTION: float = 0.5
 RS_STAGE1_SEGMENT_MIN_SPIKES: int = 3
@@ -417,7 +417,10 @@ RS_alpha_network = -np.log(RS_alpha_percentage_network)
 
 # Channel filtering for region/network bursts
 MIN_UNIQUE_CHANNELS_REGION = 1
-MIN_UNIQUE_CHANNELS_NETWORK = 0
+MIN_UNIQUE_CHANNELS_NETWORK = 1
+# Region-level participation requirement for network bursts.
+# 1 preserves current behavior; >=2 enforces cross-region network events.
+MIN_UNIQUE_REGIONS_NETWORK = 1
 
 RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02), (0.08,    0.05,    0.03)] # (stage1,  region,  network)
 # RS_ALPHA_SETS = [ (0.08,    0.05,    0.02)] # (stage1,  region,  network)

@@ -346,6 +346,7 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
             "RS_stage1_segment_mode": str(RS_STAGE1_SEGMENT_MODE),
             "RS_stage1_segment_len_s": float(RS_STAGE1_SEGMENT_LEN_S),
             "RS_stage1_segment_overlap_fraction": float(RS_STAGE1_SEGMENT_OVERLAP_FRACTION),
+            "MIN_UNIQUE_REGIONS_NETWORK": int(MIN_UNIQUE_REGIONS_NETWORK),
         })
 
     return common
@@ -401,6 +402,7 @@ def run_tag_from_params(params: dict) -> str:
             f"minSpk={params['MIN_SPIKES_IN_BURST']}"
             f"__minDur={params['MIN_BURST_DURATION']}ms"
             f"__minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}"
+            f"__minReg={params['MIN_UNIQUE_REGIONS_NETWORK']}"
         )
         # Preferred style: ..._SNR=..._FR=..._region__network
         toggles = ""
@@ -465,6 +467,7 @@ def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bo
         f"minSpk={params['MIN_SPIKES_IN_BURST']}"
         f"__minDur={params['MIN_BURST_DURATION']}ms"
         f"__minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}"
+        f"__minReg={params['MIN_UNIQUE_REGIONS_NETWORK']}"
     )
 
     toggles = ""

@@ -595,7 +595,9 @@ def compute_spans_and_bars(
     bursts: list[dict],
     *,
     min_unique_channels: int = 1,
+    min_unique_regions: int = 1,
     channel_mode: str = "elec_cluster",
+    region_fn=None,
     use_onset_plus_length: bool = False,
 ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
     """Compute spans for each window and merged bars for plotting.
@@ -617,6 +619,7 @@ def compute_spans_and_bars(
 
         overlapping = []
         chans = set()
+        regs = set()
 
         for b in bursts:
             s = float(b.get("Start_ms", np.nan))
@@ -626,8 +629,20 @@ def compute_spans_and_bars(
             if (s >= w0) and (s <= w1):  # onset within window
                 overlapping.append((s, e))
                 chans.add(_ch_id(b, channel_mode))
+                if region_fn is not None:
+                    try:
+                        reg = region_fn(b)
+                    except Exception:
+                        reg = b.get("Region", b.get("Electrode", ""))
+                else:
+                    reg = b.get("Region", b.get("Electrode", ""))
+                regs.add(str(reg))
 
-        if not overlapping or len(chans) < min_unique_channels:
+        if (
+            not overlapping
+            or len(chans) < min_unique_channels
+            or len(regs) < int(max(1, min_unique_regions))
+        ):
             spans_ms.append((float("nan"), float("nan")))
             continue
 
@@ -967,7 +982,9 @@ def rs_burst_detection(
                     spans_ms, bars_s = compute_spans_and_bars(
                         windows, all_bursts,
                         min_unique_channels=MIN_UNIQUE_CHANNELS_NETWORK,
+                        min_unique_regions=MIN_UNIQUE_REGIONS_NETWORK,
                         channel_mode="elec_cluster",
+                        region_fn=lambda b: infer_region_fn(str(b.get("Electrode", ""))),
                         use_onset_plus_length=NETWORK_SPAN_ONSET_PLUS_LENGTH,
                     )
                     
