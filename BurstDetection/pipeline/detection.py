@@ -241,6 +241,195 @@ def win_shuff_spike_times_ms(
     return out
 
 
+def _stage1_chunk_windows_ms(spk_ms: np.ndarray) -> list[tuple[float, float]]:
+    """Build Stage-1 chunk windows in ms for one unit spike train."""
+    t = np.asarray(spk_ms, dtype=float)
+    t = t[np.isfinite(t)]
+    if t.size == 0:
+        return []
+    t = np.sort(t)
+    lo = float(t[0])
+    hi = float(t[-1])
+    if hi <= lo:
+        return [(lo, hi)]
+
+    L = max(float(RS_STAGE1_SEGMENT_LEN_S) * 1000.0, 1e-6)
+    mode = str(RS_STAGE1_SEGMENT_MODE).strip().lower()
+    if mode not in ("nonoverlap", "sliding", "custom"):
+        mode = "nonoverlap"
+
+    if mode == "custom":
+        wins: list[tuple[float, float]] = []
+        custom_s = list(getattr(__import__("config"), "RS_STAGE1_CUSTOM_WINDOWS_S", []))
+        last_end = -float("inf")
+        for pair in custom_s:
+            try:
+                s_s, e_s = pair
+                s = float(s_s) * 1000.0
+                e = float(e_s) * 1000.0
+            except Exception:
+                continue
+            if not (np.isfinite(s) and np.isfinite(e)) or e <= s:
+                continue
+            if s < 0:
+                s = 0.0
+            if s < last_end - 1e-9:
+                # skip overlapping custom windows
+                continue
+            wins.append((s, e))
+            last_end = e
+        return wins
+
+    if mode == "sliding":
+        ov = float(np.clip(RS_STAGE1_SEGMENT_OVERLAP_FRACTION, 0.0, 0.99))
+        stride = max(L * (1.0 - ov), 1e-6)
+    else:
+        stride = L
+
+    wins: list[tuple[float, float]] = []
+    start = lo
+    while start <= hi + 1e-9:
+        end = min(start + L, hi)
+        if end > start:
+            wins.append((float(start), float(end)))
+        if end >= hi:
+            break
+        start += stride
+    return wins
+
+
+def _interval_iou_ms(a0: float, a1: float, b0: float, b1: float) -> float:
+    """IoU for 1D time intervals in ms."""
+    inter = max(0.0, min(a1, b1) - max(a0, b0))
+    if inter <= 0:
+        return 0.0
+    union = max(a1, b1) - min(a0, b0)
+    if union <= 0:
+        return 0.0
+    return float(inter / union)
+
+
+def _dedup_stage1_bursts_for_sliding(bursts: list[dict]) -> list[dict]:
+    """Remove near-duplicate bursts from overlapping sliding chunks."""
+    if not bursts:
+        return []
+    out: list[dict] = []
+    iou_min = float(np.clip(RS_STAGE1_POSTHOC_DEDUP_IOU_MIN, 0.0, 1.0))
+    for b in sorted(bursts, key=lambda x: (float(x["Start_ms"]), float(x["End_ms"]))):
+        s = float(b["Start_ms"]); e = float(b["End_ms"])
+        if e <= s:
+            continue
+        keep = True
+        for prev in out:
+            ps = float(prev["Start_ms"]); pe = float(prev["End_ms"])
+            iou = _interval_iou_ms(s, e, ps, pe)
+            if iou >= iou_min:
+                # Keep the stronger candidate by RS, otherwise keep the longer.
+                rs_b = float(b.get("RS", 0.0))
+                rs_p = float(prev.get("RS", 0.0))
+                if (rs_b > rs_p) or (abs(rs_b - rs_p) < 1e-12 and (e - s) > (pe - ps)):
+                    prev.update(b)
+                keep = False
+                break
+        if keep:
+            out.append(dict(b))
+    return out
+
+
+def _merge_stage1_bursts_posthoc(bursts: list[dict]) -> list[dict]:
+    """Merge overlapping/adjacent Stage-1 bursts for one unit."""
+    if not bursts:
+        return []
+    gap = float(RS_STAGE1_POSTHOC_MERGE_GAP_MS)
+    rows = sorted(
+        [dict(b) for b in bursts if float(b.get("End_ms", np.nan)) > float(b.get("Start_ms", np.nan))],
+        key=lambda x: (float(x["Start_ms"]), float(x["End_ms"]))
+    )
+    if not rows:
+        return []
+    merged: list[dict] = [rows[0]]
+    for b in rows[1:]:
+        cur = merged[-1]
+        if float(b["Start_ms"]) <= float(cur["End_ms"]) + gap:
+            cur["End_ms"] = max(float(cur["End_ms"]), float(b["End_ms"]))
+            cur["Duration_ms"] = float(cur["End_ms"] - cur["Start_ms"])
+            cur["Num_Spikes"] = int(cur.get("Num_Spikes", 0)) + int(b.get("Num_Spikes", 0))
+            cur["RS"] = float(max(float(cur.get("RS", 0.0)), float(b.get("RS", 0.0))))
+        else:
+            merged.append(dict(b))
+    return merged
+
+
+def _detect_stage1_unit_bursts(spk: np.ndarray, elec: str, cl: int) -> list[dict]:
+    """Stage-1 RS bursts for one unit, optionally using local segmentation."""
+    t = np.asarray(spk, dtype=float)
+    t = t[np.isfinite(t)]
+    if t.size < 2:
+        return []
+    t = np.sort(t)
+
+    def _detect_one_chunk(chunk_spk: np.ndarray, seed_suffix: str) -> list[dict]:
+        ref_isis = None
+        if bool(RS_WIN_SHUFF_STAGE1_ENABLE):
+            seed_unit = int(RS_WIN_SHUFF_SEED) ^ (
+                zlib.adler32(f"{elec}|{int(cl)}|{seed_suffix}".encode()) & 0xFFFFFFFF
+            )
+            sur = win_shuff_spike_times_ms(
+                chunk_spk,
+                window_ms=float(RS_WIN_SHUFF_WINDOW_MS),
+                bin_ms=float(RS_WIN_SHUFF_BIN_MS),
+                rng=np.random.default_rng(seed_unit),
+            )
+            if sur.size >= 2:
+                ref_isis = np.diff(sur)
+        start_idx, length_spikes, RSvals = RS_detect_burst(
+            chunk_spk,
+            limit=RS_Limit_stage1,
+            RSalpha=RS_alpha_stage1,
+            min_spikes=MIN_SPIKES_IN_BURST,
+            RS_Percentile_Limit=RS_Percentile_Limit_stage1,
+            reference_isis=ref_isis,
+        )
+        out_rows: list[dict] = []
+        for s, L, rs in zip(start_idx, length_spikes, RSvals):
+            s = int(s); e = int(s + L - 1)
+            if not (0 <= s < chunk_spk.size and 0 <= e < chunk_spk.size):
+                continue
+            dur_ms = float(chunk_spk[e] - chunk_spk[s])
+            if APPLY_MIN_BURST_DURATION_ALL_STAGES and dur_ms < float(MIN_BURST_DURATION):
+                continue
+            out_rows.append({
+                "Electrode": elec,
+                "Cluster": int(cl),
+                "Start_ms": float(chunk_spk[s]),
+                "End_ms": float(chunk_spk[e]),
+                "Duration_ms": dur_ms,
+                "Num_Spikes": int(L),
+                "RS": float(rs),
+                "Method": "RankSurprise",
+            })
+        return out_rows
+
+    if not bool(RS_STAGE1_LOCAL_SEGMENT_ENABLE):
+        return _detect_one_chunk(t, "global")
+
+    wins = _stage1_chunk_windows_ms(t)
+    raw_rows: list[dict] = []
+    min_spk = int(max(2, RS_STAGE1_SEGMENT_MIN_SPIKES))
+    for i, (w0, w1) in enumerate(wins):
+        m = (t >= w0) & (t <= w1)
+        chunk = t[np.flatnonzero(m)]
+        if chunk.size < min_spk:
+            continue
+        raw_rows.extend(_detect_one_chunk(chunk, f"chunk{i}"))
+
+    if str(RS_STAGE1_SEGMENT_MODE).strip().lower() == "sliding":
+        raw_rows = _dedup_stage1_bursts_for_sliding(raw_rows)
+    if bool(RS_STAGE1_POSTHOC_MERGE_ENABLE):
+        raw_rows = _merge_stage1_bursts_posthoc(raw_rows)
+    return raw_rows
+
+
 def RS_detect_burst(
     spiketimes,
     limit=None,
@@ -571,48 +760,7 @@ def rs_burst_detection(
         # Stage 1: unit-level bursts
         unit_bursts: list[dict] = []
         for elec, cl, spk in iter_units_fn(spike_struct_side, STATS):
-            ref_isis = None
-            if bool(RS_WIN_SHUFF_STAGE1_ENABLE):
-                seed_unit = int(RS_WIN_SHUFF_SEED) ^ (
-                    zlib.adler32(f"{elec}|{int(cl)}".encode()) & 0xFFFFFFFF
-                )
-                sur = win_shuff_spike_times_ms(
-                    spk,
-                    window_ms=float(RS_WIN_SHUFF_WINDOW_MS),
-                    bin_ms=float(RS_WIN_SHUFF_BIN_MS),
-                    rng=np.random.default_rng(seed_unit),
-                )
-                if sur.size >= 2:
-                    ref_isis = np.diff(sur)
-                else:
-                    ref_isis = None
-            start_idx, length_spikes, RSvals = RS_detect_burst(
-                spk,
-                limit=RS_Limit_stage1,
-                RSalpha=RS_alpha_stage1,
-                min_spikes=MIN_SPIKES_IN_BURST,
-                RS_Percentile_Limit=RS_Percentile_Limit_stage1,
-                reference_isis=ref_isis,
-            )
-            for s, L, rs in zip(start_idx, length_spikes, RSvals):
-                s = int(s); e = int(s + L - 1)
-                if 0 <= s < spk.size and 0 <= e < spk.size:
-                    dur_ms = float(spk[e] - spk[s])
-                    # By default MIN_BURST_DURATION is applied only at the final
-                    # network level. When APPLY_MIN_BURST_DURATION_ALL_STAGES is
-                    # True, also drop short bursts at the unit level here.
-                    if APPLY_MIN_BURST_DURATION_ALL_STAGES and dur_ms < float(MIN_BURST_DURATION):
-                        continue
-                    unit_bursts.append({
-                        "Electrode": elec,
-                        "Cluster": int(cl),
-                        "Start_ms": float(spk[s]),
-                        "End_ms": float(spk[e]),
-                        "Duration_ms": dur_ms,
-                        "Num_Spikes": int(L),
-                        "RS": float(rs),
-                        "Method": "RankSurprise",
-                    })
+            unit_bursts.extend(_detect_stage1_unit_bursts(spk, str(elec), int(cl)))
 
         # Keep an untouched Stage-1 snapshot for dedicated plotting.
         stage1_unit_bursts = [dict(b) for b in unit_bursts]

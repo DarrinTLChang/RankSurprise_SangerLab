@@ -342,6 +342,10 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
             "RS_win_shuff_stage1": bool(RS_WIN_SHUFF_STAGE1_ENABLE),
             "RS_win_shuff_window_ms": float(RS_WIN_SHUFF_WINDOW_MS),
             "RS_win_shuff_bin_ms": float(RS_WIN_SHUFF_BIN_MS),
+            "RS_stage1_local_segment_enable": bool(RS_STAGE1_LOCAL_SEGMENT_ENABLE),
+            "RS_stage1_segment_mode": str(RS_STAGE1_SEGMENT_MODE),
+            "RS_stage1_segment_len_s": float(RS_STAGE1_SEGMENT_LEN_S),
+            "RS_stage1_segment_overlap_fraction": float(RS_STAGE1_SEGMENT_OVERLAP_FRACTION),
         })
 
     return common
@@ -410,6 +414,11 @@ def run_tag_from_params(params: dict) -> str:
             win_w = _fmt_num(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
             win_b = _fmt_num(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
             toggles += f"__win({win_w},{win_b})" if toggles else f"win({win_w},{win_b})"
+        if params.get("RS_stage1_local_segment_enable"):
+            seg_mode = str(params.get("RS_stage1_segment_mode", "nonoverlap"))
+            seg_len = _fmt_num(float(params.get("RS_stage1_segment_len_s", RS_STAGE1_SEGMENT_LEN_S)))
+            ov = _fmt_num(float(params.get("RS_stage1_segment_overlap_fraction", RS_STAGE1_SEGMENT_OVERLAP_FRACTION)))
+            toggles += f"__seg({seg_mode},{seg_len}s,ov={ov})" if toggles else f"seg({seg_mode},{seg_len}s,ov={ov})"
         tag = f"{head}_{mins}_{common_suffix}{toggles}"
         parts += [tag]
         if params["pooling"]:
@@ -467,6 +476,11 @@ def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bo
         win_w = _fmt_num(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
         win_b = _fmt_num(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
         toggles += f"__win({win_w},{win_b})" if toggles else f"_win({win_w},{win_b})"
+    if params.get("RS_stage1_local_segment_enable"):
+        seg_mode = str(params.get("RS_stage1_segment_mode", "nonoverlap"))
+        seg_len = _fmt_num(float(params.get("RS_stage1_segment_len_s", RS_STAGE1_SEGMENT_LEN_S)))
+        ov = _fmt_num(float(params.get("RS_stage1_segment_overlap_fraction", RS_STAGE1_SEGMENT_OVERLAP_FRACTION)))
+        toggles += f"__seg({seg_mode},{seg_len}s,ov={ov})" if toggles else f"_seg({seg_mode},{seg_len}s,ov={ov})"
 
     return f"{head}{flags_str}_{mins}{toggles}"
 

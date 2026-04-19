@@ -41,6 +41,9 @@ SpikeTime_Mat_File = [
     #check induce benzo and see as it gradually fades how does it gradaully fade over time and effects on bursts
     #benzo is one of the most important drugs for dystonia control
 
+    "patient_data/burst_pause_example/spikeTime_p1.mat",
+
+
     "patient_data/s432/spikeTime_p2.mat",
     "patient_data/s432/spikeTime_p7.mat",
     "patient_data/s432/spikeTime_p9.mat",
@@ -249,7 +252,6 @@ DUPLICATE_SANGER_HTML_DIR = Path(r"F:\SangerLabBursts\sanger_html_gallery_sepera
 #   F:\SangerLabBursts_RS\s531\Period3\<run_tag>\...
 #   F:\SangerLabBursts_maxISI\s531\Period3\<run_tag>\...
 OUTPUT_ROOT_RS = Path(r"F:\SangerLabBursts_RS")
-# RankSurprise outputs for kilosort: / kilosortset: (mouse neuropixels), separate from human paths.
 OUTPUT_ROOT_RS_MOUSE = Path(r"F:\mouse_RS")
 OUTPUT_ROOT_MAXISI = Path(r"F:\SangerLabBursts_maxISI")
 OUTPUT_ROOT_ALPHA_MEANISI = Path(r"F:\SangerLabBursts_alphaMeanISI")
@@ -330,7 +332,7 @@ maxISI_thresholds = [0]
 
 # ISI detection
 MIN_SPIKES_IN_BURST = 3
-MIN_BURST_DURATION = 50  # ms
+MIN_BURST_DURATION = 0  # ms
 ibi_merge_factor = 0
 
 # If True: MIN_BURST_DURATION is applied at ALL stages (unit, region, and network).
@@ -358,12 +360,12 @@ RS_OFFSET_NULL_ENABLE: bool = True
 RS_OFFSET_NULL_SEED: int = 123
 # Max absolute offset magnitude (ms). Offsets are sampled uniformly in [0, RS_OFFSET_NULL_MAX_OFFSET_MS).
 # If None, defaults to the estimated recording duration for that side (from latest burst end time).
-RS_OFFSET_NULL_MAX_OFFSET_MS: float | None = 1000.0
+RS_OFFSET_NULL_MAX_OFFSET_MS: float | None = 10000.0
 
 # Stage 1 WIN-SHUFF null (Stella et al., eNeuro 2022): optional single-surrogate
 # reference ISI pool from the same spike train (breaks fine-scale burst structure).
 # RS_WIN_SHUFF_WINDOW_MS = shuffle window Δ_ws; RS_WIN_SHUFF_BIN_MS = inner bin b (must divide window evenly).
-RS_WIN_SHUFF_STAGE1_ENABLE: bool = False
+RS_WIN_SHUFF_STAGE1_ENABLE: bool = True
 RS_WIN_SHUFF_WINDOW_MS: float = 200.0
 RS_WIN_SHUFF_BIN_MS: float = 10.0
 RS_WIN_SHUFF_SEED: int = 456
@@ -371,13 +373,13 @@ RS_WIN_SHUFF_SEED: int = 456
 #   window_ms = AUTO_WINDOW_FRACTION_RECORDING * recording_ms
 #   bin_ms    = AUTO_BIN_FRACTION_OF_WINDOW   * window_ms
 # then clip to min/max bounds and snap so window/bin is an integer count.
-RS_WIN_SHUFF_AUTO_FROM_RECORDING: bool = False
+RS_WIN_SHUFF_AUTO_FROM_RECORDING: bool = True
 RS_WIN_SHUFF_AUTO_WINDOW_FRACTION_RECORDING: float = 0.10
 RS_WIN_SHUFF_AUTO_BIN_FRACTION_OF_WINDOW: float = 0.10
 RS_WIN_SHUFF_AUTO_WINDOW_MIN_MS: float = 50.0
-RS_WIN_SHUFF_AUTO_WINDOW_MAX_MS: float = 1000.0
-RS_WIN_SHUFF_AUTO_BIN_MIN_MS: float = 1.0
-RS_WIN_SHUFF_AUTO_BIN_MAX_MS: float = 50.0
+RS_WIN_SHUFF_AUTO_WINDOW_MAX_MS: float = 10000.0
+RS_WIN_SHUFF_AUTO_BIN_MIN_MS: float = 5.0
+RS_WIN_SHUFF_AUTO_BIN_MAX_MS: float = 1000.0
 
 # Stage 1: unit/cluster bursts  
 RS_Limit_stage1 = None
@@ -385,6 +387,22 @@ RS_Percentile_Limit_stage1 = 75
 RS_alpha_percentage_stage1 = 0.08
 RS_alpha_stage1 = -np.log(RS_alpha_percentage_stage1)
 
+# Stage 1 local segmentation (Problem B: slow firing-rate drift)
+# - nonoverlap: disjoint chunks [0,L), [L,2L), ...
+# - sliding: fixed chunk length L with stride L*(1-overlap_fraction)
+# - custom: explicit non-overlapping windows from RS_STAGE1_CUSTOM_WINDOWS_S (seconds)
+RS_STAGE1_LOCAL_SEGMENT_ENABLE: bool = True
+# RS_STAGE1_SEGMENT_MODE: str = "nonoverlap"  # "nonoverlap" | "sliding" | "custom"
+RS_STAGE1_SEGMENT_MODE: str = "sliding"  # "nonoverlap" | "sliding" | "custom"
+RS_STAGE1_SEGMENT_LEN_S: float = 45.0
+RS_STAGE1_SEGMENT_OVERLAP_FRACTION: float = 0.5
+RS_STAGE1_SEGMENT_MIN_SPIKES: int = 3
+RS_STAGE1_POSTHOC_MERGE_ENABLE: bool = True
+RS_STAGE1_POSTHOC_MERGE_GAP_MS: float = 20.0
+RS_STAGE1_POSTHOC_DEDUP_IOU_MIN: float = 0.8
+# Custom windows for Stage-1 segmentation (seconds, absolute recording time).
+# Used only when RS_STAGE1_SEGMENT_MODE == "custom".
+RS_STAGE1_CUSTOM_WINDOWS_S: list[tuple[float, float]] = []
 # Region-level
 RS_Limit_region = None
 RS_Percentile_Limit_region = 75
@@ -402,7 +420,7 @@ MIN_UNIQUE_CHANNELS_REGION = 1
 MIN_UNIQUE_CHANNELS_NETWORK = 0
 
 RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02), (0.08,    0.05,    0.03)] # (stage1,  region,  network)
-# RS_ALPHA_SETS = [ (0.03,    0.02,    0.02)] # (stage1,  region,  network)
+# RS_ALPHA_SETS = [ (0.08,    0.05,    0.02)] # (stage1,  region,  network)
 # Optional sweep for Stage-1 WIN-SHUFF parameters (window_ms, bin_ms).
 # These are iterated similarly to RS_ALPHA_SETS in main.py when
 # RS_WIN_SHUFF_AUTO_FROM_RECORDING is False (fixed-size mode).
