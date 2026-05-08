@@ -182,6 +182,8 @@ SpikeTime_Mat_File = [
 
     # "patient_data/s531/day4_baseline/spikeTime_p5.mat",
 
+    "mouse_data/m401_imec2_shank13_spike_times.npy",
+    "mouse_data/m422_imec2_shank13_spike_times.npy",
 
     #GNAO1####
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec0",
