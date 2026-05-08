@@ -64,6 +64,10 @@ def dataset_labels_kilosort(ks_dir: str | Path) -> tuple[str, str]:
     """
     Derive (patient, period) labels from a path like .../m360/shank0/imec0/kilosort4.
     patient ≈ m360_shank0_imec0; period is fixed for KS exports.
+
+    Flat layout (mouse): .../<line>/<gate_folder>/<imec_folder>/ with KS files in
+    imec_folder (no kilosort4). patient ≈ f"{gate}_{imec_leaf}" to align with output
+    folder tokens and synthetic electrode prefixes.
     """
     p = Path(ks_dir).resolve()
     parts = p.parts
@@ -74,6 +78,10 @@ def dataset_labels_kilosort(ks_dir: str | Path) -> tuple[str, str]:
             shank = parts[-3]
             session = parts[-4]
             patient = f"{session}_{shank}_{imec}"
+        elif len(parts) >= 2 and "imec" in p.name.lower():
+            imec_leaf = p.name
+            gate = p.parent.name
+            patient = f"{gate}_{imec_leaf}"
     except Exception:
         patient = p.parent.name + "_" + p.name
     return patient, "Period 1"

@@ -202,6 +202,7 @@ def run_single_dataset(
             raw_path,
             good_only=KILOSORT_GOOD_ONLY,
             max_duration_s=KILOSORT_MAX_DURATION_S,
+
         )
         mat_file_for_cache = None
     elif kind == "kilosortset":
@@ -254,28 +255,48 @@ def run_single_dataset(
     patient_dir = patient
 
     # Kilosort output layout override:
-    #   <METHOD_ROOT>\<session>\<imecX_shankY>\<run_tag>\...
-    #   <METHOD_ROOT>\<session>\<imecX_allshanks>\<run_tag>\...  (kilosortset)
+    # Legacy: .../<session>/<shankX>/<imecY>/kilosort4  (rat)
+    # Flat:   .../<line>/<gate_folder>/<imec_folder>/      (mouse; KS files in imec_folder)
+    #   <METHOD_ROOT>\<patient_dir>\<period_dir>\<run_tag>\...
     if kind in ("kilosort", "kilosortset"):
+        def _sanitize_path_token(s: str) -> str:
+            return re.sub(r"[<>:\"/\\\\|?*]", "", str(s))
+
         try:
             if kind == "kilosort":
                 p0 = Path(raw_path)
             else:
                 p0 = Path([p.strip() for p in raw_path.split(";") if p.strip()][0])
-            # .../<session>/<shankX>/<imecY>/kilosort4
-            session = p0.parts[-4]
-            shank = p0.parts[-3]
-            imec = p0.parts[-2]
+            parts = p0.parts
+            if p0.name.lower() == "kilosort4" and len(parts) >= 4:
+                session = parts[-4]
+                shank = parts[-3]
+                imec = parts[-2]
+                patient_dir = _sanitize_path_token(session)
+                if kind == "kilosort":
+                    period_dir = f"{_sanitize_path_token(imec)}_{_sanitize_path_token(shank)}"
+                else:
+                    period_dir = f"{_sanitize_path_token(imec)}_allshanks"
+            else:
+                # Flat KS root (no trailing kilosort4 directory)
+                if len(parts) >= 4:
+                    patient_dir = _sanitize_path_token(parts[-3])
+                elif len(parts) >= 2:
+                    patient_dir = _sanitize_path_token(parts[-2])
+                else:
+                    patient_dir = "kilosort"
+                gate = parts[-2] if len(parts) >= 2 else "gate"
+                leaf = parts[-1] if len(parts) >= 1 else "imec"
+                if kind == "kilosort":
+                    period_dir = _sanitize_path_token(f"{gate}_{leaf}")
+                else:
+                    period_dir = f"{_sanitize_path_token(leaf)}_allshanks"
         except Exception:
-            session = "kilosort"
-            shank = "shank"
-            imec = "imec"
-
-        patient_dir = session
-        if kind == "kilosort":
-            period_dir = f"{imec}_{shank}"  # e.g. imec0_shank1
-        else:
-            period_dir = f"{imec}_allshanks"  # e.g. imec0_allshanks
+            patient_dir = "kilosort"
+            if kind == "kilosort":
+                period_dir = "imec_shank"
+            else:
+                period_dir = "imec_allshanks"
 
     def _dataset_tag_for_gallery(kind: str, raw_path: str, patient: str) -> str:
         # Prefer existing patient label when it already looks like m360_shank2_imec0.
@@ -291,6 +312,8 @@ def run_single_dataset(
 
     run_params = build_run_params(thr_method_name, base_thr)
     if kind in ("kilosort", "kilosortset"):
+        # Persist any Kilosort time clipping into naming/metadata.
+        run_params["max_duration_s"] = KILOSORT_MAX_DURATION_S
         run_tag = run_tag_from_params_kilosort(
             run_params,
             good_only=bool(KILOSORT_GOOD_ONLY),
@@ -298,6 +321,9 @@ def run_single_dataset(
         )
     else:
         run_tag = run_tag_from_params(run_params)
+    max_dur_s = KILOSORT_MAX_DURATION_S
+    if max_dur_s is not None:
+        run_tag = f"{run_tag}_[0-{max_dur_s}s]"
     run_dir = method_root / patient_dir / period_dir / run_tag
     isi_dir = run_dir / "isi_summary"
     raster_dir = run_dir / "raster_plots"
@@ -647,7 +673,20 @@ def run_single_dataset(
             reg_bars_L,
             reg_bars_R,
             duplicate_for_gallery: bool = False,
+            suppress_burst_visuals: bool = False,
         ):
+            if suppress_burst_visuals:
+                fig_nw_L = None
+                fig_nw_R = None
+                fig_rw_L = None
+                fig_rw_R = None
+                fig_disable_bursts = True
+            else:
+                fig_nw_L = network_windows_L
+                fig_nw_R = network_windows_R
+                fig_rw_L = region_windows_L
+                fig_rw_R = region_windows_R
+                fig_disable_bursts = disable_bursts
             fig = make_sangerlab_presentation_figure(
                 spike_struct_L=spike_struct_L,
                 spike_struct_R=spike_struct_R,
@@ -668,24 +707,37 @@ def run_single_dataset(
                 emg_downsample=bottom_ds,
                 emg_panel_labels=bottom_labels,
                 emg_y_range=bottom_y_range,
-                network_windows_L=network_windows_L,
-                network_windows_R=network_windows_R,
+                network_windows_L=fig_nw_L,
+                network_windows_R=fig_nw_R,
                 network_bars_L=net_bars_L,
                 network_bars_R=net_bars_R,
-                region_windows_by_region_L=region_windows_L,
-                region_windows_by_region_R=region_windows_R,
+                region_windows_by_region_L=fig_rw_L,
+                region_windows_by_region_R=fig_rw_R,
                 region_bars_by_region_L=reg_bars_L,
                 region_bars_by_region_R=reg_bars_R,
-                disable_bursts=disable_bursts,
+                disable_bursts=fig_disable_bursts,
                 fr_df_L=fr_df_L,
                 fr_df_R=fr_df_R,
                 show_firing_rate=PLOT_FR,
+                compact_kilosort_title=(kind in ("kilosort", "kilosortset")),
             )
             save_fig_interactive(fig, raster_dir / name)
             if duplicate_for_gallery and DUPLICATE_SANGER_HTML and DUPLICATE_SANGER_HTML_DIR:
                 tag = _dataset_tag_for_gallery(kind, raw_path, patient)
                 out_base = Path(DUPLICATE_SANGER_HTML_DIR) / tag
                 save_fig_interactive(fig, out_base)
+
+        _make_and_save_stage_figure(
+            name="stage0_raw",
+            bursts_L=[],
+            bursts_R=[],
+            net_bars_L=[],
+            net_bars_R=[],
+            reg_bars_L={},
+            reg_bars_R={},
+            duplicate_for_gallery=False,
+            suppress_burst_visuals=True,
+        )
 
         # Stage 1: unit-level RS bursts only (no region/network bars).
         _make_and_save_stage_figure(
@@ -770,6 +822,7 @@ def run_single_dataset(
             fr_df_L=fr_df_L,
             fr_df_R=fr_df_R,
             show_firing_rate=PLOT_FR,
+            compact_kilosort_title=(kind in ("kilosort", "kilosortset")),
         )
         save_fig_interactive(fig_corr, raster_dir / "correlation_graph")
 

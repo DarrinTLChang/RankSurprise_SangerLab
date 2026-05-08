@@ -974,6 +974,9 @@ def rs_burst_detection(
                     # MIN_BURST_DURATION applied only at final network burst level (here)
                     if (t1 - t0) < float(MIN_BURST_DURATION):
                         continue
+                    # Symmetric MAX_BURST_DURATION gate (when enabled): drop very long windows.
+                    if MAX_BURST_DURATION is not None and (t1 - t0) > float(MAX_BURST_DURATION):
+                        continue
                     windows.append((t0, t1))
                     rs_vals_for_windows.append(float(rs2))
                     num_events_for_windows.append(int(L2))
