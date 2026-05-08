@@ -156,83 +156,99 @@ def save_fig_interactive(fig: go.Figure, base_name):
     print(f"• Saved interactive {html_path}")
 
 
-def add_region_legend_burst(fig: go.Figure, *, row: int = 1, col: int = 1):
-    fig.add_trace(
-        go.Scattergl(
-            x=[None], y=[None],
-            mode="lines",
-            line=dict(color="rgb(220,0,0)", width=24),
-            name="Network Burst (L)",
-            showlegend=True,
-            hoverinfo="skip",
-        ),
-        row=row, col=col
-    )
-
-    fig.add_trace(
-        go.Scattergl(
-            x=[None], y=[None],
-            mode="markers",
-            marker=dict(
-                symbol="line-ns", size=18,
-                color="rgba(0,0,0,0)",
-                line=dict(width=4, color="rgb(220,0,0)")
+def add_region_legend_burst(
+    fig: go.Figure,
+    *,
+    row: int = 1,
+    col: int = 1,
+    include_fr_emg: bool = True,
+    side_tags: tuple[str, ...] = ("L", "R"),
+):
+    # Raster legend items: keep only the sides that are actually plotted.
+    if "L" in side_tags:
+        fig.add_trace(
+            go.Scattergl(
+                x=[None], y=[None],
+                mode="lines",
+                line=dict(color="rgb(220,0,0)", width=24),
+                name="Network Burst (L)",
+                showlegend=True,
+                hoverinfo="skip",
             ),
-            name="Regional Bursts (L)",
-            showlegend=True,
-            hoverinfo="skip",
+            row=row, col=col,
         )
-    )
 
-    fig.add_trace(
-        go.Scattergl(
-            x=[None], y=[None],
-            mode="lines",
-            line=dict(color="rgb(153,51,255)", width=24),
-            name="Network Burst (R)",
-            showlegend=True,
-            hoverinfo="skip",
-        ),
-        row=row, col=col
-    )
-
-    fig.add_trace(
-        go.Scattergl(
-            x=[None], y=[None],
-            mode="markers",
-            marker=dict(
-                symbol="line-ns", size=8,
-                color="rgba(0,0,0,0)",
-                line=dict(width=4, color="rgb(153,51,255)")
+        fig.add_trace(
+            go.Scattergl(
+                x=[None], y=[None],
+                mode="markers",
+                marker=dict(
+                    symbol="line-ns", size=18,
+                    color="rgba(0,0,0,0)",
+                    line=dict(width=4, color="rgb(220,0,0)"),
+                ),
+                name="Regional Bursts (L)",
+                showlegend=True,
+                hoverinfo="skip",
             ),
-            name="Regional Bursts (R)",
-            showlegend=True,
-            hoverinfo="skip",
+            row=row, col=col,
         )
-    )
 
-    fig.add_trace(
-        go.Bar(
-            x=[0], y=[0],
-            marker=dict(color="rgb(249, 153, 153)"),
-            name="Network Burst (L)",
-            legendgroup="FR/EMG",
-            legendgrouptitle_text="FR/EMG",
-            showlegend=True,
-            hoverinfo="skip",
+    if "R" in side_tags:
+        fig.add_trace(
+            go.Scattergl(
+                x=[None], y=[None],
+                mode="lines",
+                line=dict(color="rgb(153,51,255)", width=24),
+                name="Network Burst (R)",
+                showlegend=True,
+                hoverinfo="skip",
+            ),
+            row=row, col=col,
         )
-    )
 
-    fig.add_trace(
-        go.Bar(
-            x=[0], y=[0],
-            marker=dict(color="rgb(214, 173, 255)"),
-            name="Network Burst (R)",
-            legendgroup="FR/EMG",
-            showlegend=True,
-            hoverinfo="skip",
+        fig.add_trace(
+            go.Scattergl(
+                x=[None], y=[None],
+                mode="markers",
+                marker=dict(
+                    symbol="line-ns", size=8,
+                    color="rgba(0,0,0,0)",
+                    line=dict(width=4, color="rgb(153,51,255)"),
+                ),
+                name="Regional Bursts (R)",
+                showlegend=True,
+                hoverinfo="skip",
+            ),
+            row=row, col=col,
         )
-    )
+
+    # FR/EMG legend group: optionally hide it (kilosort/kilosortset request).
+    if include_fr_emg:
+        if "L" in side_tags:
+            fig.add_trace(
+                go.Bar(
+                    x=[0], y=[0],
+                    marker=dict(color="rgb(249, 153, 153)"),
+                    name="Network Burst (L)",
+                    legendgroup="FR/EMG",
+                    legendgrouptitle_text="FR/EMG",
+                    showlegend=True,
+                    hoverinfo="skip",
+                )
+            )
+
+        if "R" in side_tags:
+            fig.add_trace(
+                go.Bar(
+                    x=[0], y=[0],
+                    marker=dict(color="rgb(214, 173, 255)"),
+                    name="Network Burst (R)",
+                    legendgroup="FR/EMG",
+                    showlegend=True,
+                    hoverinfo="skip",
+                )
+            )
 
 
 def add_emg_panel(fig: go.Figure,
@@ -337,6 +353,12 @@ SIDE_COLORS = {
     "R": {"burst": "rgb(110,0,170)", "network": "rgb(110,0,170)", "emg_shader": "rgba(153,51,255,0.4)"},
 }
 
+# Multi-panel presentation figures (raster + EMG/FR) use a fixed height. A single raster-only
+# subplot used to inherit the full 1200px, which adds empty vertical space and browser scroll;
+# use ~20% above the nominal ~600px single-row share instead.
+PRESENTATION_FIG_HEIGHT_DEFAULT = 1200
+PRESENTATION_FIG_HEIGHT_RASTER_ONLY_ONE_SIDE = int(round(600 * 1.2))
+
 
 def make_sangerlab_presentation_figure(
     spike_struct_L,
@@ -372,49 +394,80 @@ def make_sangerlab_presentation_figure(
     fr_df_R: pd.DataFrame | None = None,
     show_firing_rate: bool = True,
     show_proxy_shaders: bool | None = None,
+    compact_kilosort_title: bool = False,
 ) -> go.Figure:
 
-    show_emg = (
-        emg_t_s is not None
-        and emg_traces_L is not None and len(emg_traces_L) > 0
-        and emg_traces_R is not None and len(emg_traces_R) > 0
-    )
-    show_fr = (
-        show_firing_rate
-        and fr_df_L is not None and len(fr_df_L) > 0
-        and fr_df_R is not None and len(fr_df_R) > 0
-    )
+    left_has = spike_struct_L is not None and np.ravel(spike_struct_L).size > 0
+    right_has = spike_struct_R is not None and np.ravel(spike_struct_R).size > 0
 
+    side_tags: list[str] = []
+    if left_has:
+        side_tags.append("L")
+    if right_has:
+        side_tags.append("R")
+    if not side_tags:
+        # Fallback: keep a single raster axis rather than failing.
+        side_tags = ["L"]
+
+    def _emg_ok(tag: str) -> bool:
+        traces = emg_traces_L if tag == "L" else emg_traces_R
+        return emg_t_s is not None and traces is not None and len(traces) > 0
+
+    def _fr_ok(tag: str) -> bool:
+        df = fr_df_L if tag == "L" else fr_df_R
+        return df is not None and len(df) > 0
+
+    show_emg = all(_emg_ok(tag) for tag in side_tags)
+    show_fr = show_firing_rate and all(_fr_ok(tag) for tag in side_tags)
+
+    n_sides = len(side_tags)
     # ---- subplot layout: raster, then neo (EMG/proxy), then FR ----
     if show_emg and show_fr:
-        n_rows, row_heights = 6, [0.38, 0.38, 0.27, 0.27, 0.20, 0.20]
+        n_rows = 3 * n_sides
+        row_heights = [0.38] * n_sides + [0.27] * n_sides + [0.20] * n_sides
     elif show_emg:
-        n_rows, row_heights = 4, [0.22, 0.22, 0.28, 0.28]
+        n_rows = 2 * n_sides
+        row_heights = [0.22] * n_sides + [0.28] * n_sides
     elif show_fr:
-        n_rows, row_heights = 4, [0.3, 0.3, 0.24, 0.24]
+        n_rows = 2 * n_sides
+        row_heights = [0.30] * n_sides + [0.24] * n_sides
     else:
-        n_rows, row_heights = 2, [0.60, 0.40]
+        n_rows = n_sides
+        row_heights = [1.0] if n_sides == 1 else [0.60, 0.40]
 
     fig = make_subplots(
-        rows=n_rows, cols=1,
+        rows=n_rows,
+        cols=1,
         shared_xaxes=True,
         vertical_spacing=0.05,
         row_heights=row_heights,
     )
 
     # ---- per-side data ----
-    sides = [
-        {"tag": "L", "row": 1, "label": "Left",
-         "struct": spike_struct_L, "bursts": all_bursts_L,
-         "net_wins": network_windows_L, "net_bars": network_bars_L if network_bars_L is not None else [],
-         "reg_wins": region_windows_by_region_L, "reg_bars": region_bars_by_region_L if region_bars_by_region_L is not None else {},
-         "fr_df": fr_df_L, "emg_traces": emg_traces_L},
-        {"tag": "R", "row": 2, "label": "Right",
-         "struct": spike_struct_R, "bursts": all_bursts_R,
-         "net_wins": network_windows_R, "net_bars": network_bars_R if network_bars_R is not None else [],
-         "reg_wins": region_windows_by_region_R, "reg_bars": region_bars_by_region_R if region_bars_by_region_R is not None else {},
-         "fr_df": fr_df_R, "emg_traces": emg_traces_R},
-    ]
+    label_for_tag = {"L": "Left", "R": "Right"}
+    sides = []
+    for i, tag in enumerate(side_tags):
+        label = "" if compact_kilosort_title else label_for_tag.get(tag, "")
+        row = i + 1
+        sides.append(
+            {
+                "tag": tag,
+                "row": row,
+                "label": label,
+                "struct": spike_struct_L if tag == "L" else spike_struct_R,
+                "bursts": all_bursts_L if tag == "L" else all_bursts_R,
+                "net_wins": network_windows_L if tag == "L" else network_windows_R,
+                "net_bars": (network_bars_L if tag == "L" else network_bars_R)
+                if (network_bars_L if tag == "L" else network_bars_R) is not None
+                else [],
+                "reg_wins": region_windows_by_region_L if tag == "L" else region_windows_by_region_R,
+                "reg_bars": (region_bars_by_region_L if tag == "L" else region_bars_by_region_R)
+                if (region_bars_by_region_L if tag == "L" else region_bars_by_region_R) is not None
+                else {},
+                "fr_df": fr_df_L if tag == "L" else fr_df_R,
+                "emg_traces": emg_traces_L if tag == "L" else emg_traces_R,
+            }
+        )
 
     # ---- raster panels ----
     region_orders: dict[str, list[str]] = {}
@@ -503,7 +556,22 @@ def make_sangerlab_presentation_figure(
                 )
 
         y_max = row_all * RASTER_ROW_SPACING
+        # Reserve headroom for the top-of-raster bar stack (network + region bars).
+        # This keeps the raster panel visually consistent across stages (e.g. Stage 1 vs Stage 2),
+        # even when later stages draw additional bars.
         y_min = -(8.0 * RASTER_ROW_SPACING)
+        y_top_reserved = -5.0 * RASTER_ROW_SPACING
+        bar_height_reserved = 3.5 * RASTER_ROW_SPACING
+        if bool(plot_network_bar):
+            y_min = min(y_min, y_top_reserved - bar_height_reserved)
+        if bool(plot_region_bar):
+            n_regions = max(0, len(region_first_seen))
+            if n_regions > 0:
+                reg_bar_h = bar_height_reserved / 2.0
+                reg_step = 1.2 * bar_height_reserved
+                reg_top = y_top_reserved - 2.5 * bar_height_reserved
+                reg_bottom = reg_top - reg_bar_h - (n_regions - 1) * reg_step
+                y_min = min(y_min, reg_bottom)
 
         # Build readable y ticks. For mingled Kilosort plots we show a depth scale (µm) at regular intervals.
         if depth_pairs and (not bool(KILOSORT_RASTER_GROUP_BY_SHANK)):
@@ -525,7 +593,7 @@ def make_sangerlab_presentation_figure(
         fig.update_yaxes(
             title_text=side["label"], tickvals=tickvals, ticktext=ticktext,
             tickfont=dict(size=14), ticks="", ticklen=0,
-            range=[y_min, y_max], autorange="reversed",
+            range=[y_max, y_min], autorange=False,
             row=side["row"], col=1, showline=False, zeroline=False,
         )
         fig.add_shape(
@@ -543,8 +611,9 @@ def make_sangerlab_presentation_figure(
 
     # ---- firing-rate panels (rows 5,6 when EMG also shown; else 3,4) ----
     if show_fr:
+        fr_row_start = (2 * n_sides + 1) if show_emg else (n_sides + 1)
         for i, side in enumerate(sides):
-            fr_row = (5 if show_emg else 3) + i
+            fr_row = fr_row_start + i
             add_firing_rate_panel(
                 fig, side["fr_df"], record_len_s,
                 row=fr_row, col=1,
@@ -595,18 +664,23 @@ def make_sangerlab_presentation_figure(
             )
 
     # ---- EMG/proxy panels (rows 3,4; before FR when both shown) ----
-    emg_labels = emg_panel_labels if emg_panel_labels is not None else ("Summed EMG (L)", "Summed EMG (R)")
     if show_emg:
         if show_proxy_shaders is None:
             # Default to config toggle for backward compatibility.
             show_proxy_shaders = bool(SHOW_PROXY_SHADERS)
+        if emg_panel_labels is not None:
+            label_L, label_R = emg_panel_labels
+        else:
+            label_L, label_R = ("Summed EMG (L)", "Summed EMG (R)")
+        emg_row_start = n_sides + 1
         for i, side in enumerate(sides):
-            emg_row = 3 + i
+            emg_row = emg_row_start + i
+            side_label = label_L if side["tag"] == "L" else label_R
 
             add_emg_panel(
                 fig, emg_t_s, side["emg_traces"], row=emg_row, col=1,
                 downsample=emg_downsample,
-                side_label=emg_labels[i],
+                side_label=side_label,
                 line_color=SIDE_COLORS[side["tag"]]["burst"],
                 show_y_ticks=(emg_panel_labels is not None),
             )
@@ -637,19 +711,36 @@ def make_sangerlab_presentation_figure(
         fig.update_xaxes(showticklabels=False, row=r, col=1)
 
     if presentation_mode:
-        fig_title = f"{patient} \u2022 {period} \u2014 {run_params['method']}"
+        if compact_kilosort_title:
+            fig_title = f"{patient} \u2014 {run_params['method']}"
+        else:
+            fig_title = f"{patient} \u2022 {period} \u2014 {run_params['method']}"
     else:
-        fig_title = figure_title_from_params(run_params, patient, period)
+        fig_title = figure_title_from_params(
+            run_params, patient, period, compact_kilosort=compact_kilosort_title,
+        )
 
-    add_region_legend_burst(fig, row=1, col=1)
+    add_region_legend_burst(
+        fig,
+        row=1,
+        col=1,
+        include_fr_emg=(not compact_kilosort_title),
+        side_tags=tuple(side_tags),
+    )
+    raster_only = not show_emg and not show_fr
+    fig_height = (
+        PRESENTATION_FIG_HEIGHT_RASTER_ONLY_ONE_SIDE
+        if (raster_only and n_sides == 1)
+        else PRESENTATION_FIG_HEIGHT_DEFAULT
+    )
     fig.update_layout(
         title=fig_title,
         template="simple_white",
         margin=COMMON_MARGINS,
         hovermode="closest",
-        height=1200,
+        height=fig_height,
         showlegend=True,
-        legend_title_text="Legend",
+        legend_title_text="" if compact_kilosort_title else "Legend",
         legend=dict(itemsizing="constant", itemclick="toggle", itemdoubleclick="toggleothers"),
     )
 

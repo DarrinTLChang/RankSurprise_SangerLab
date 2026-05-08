@@ -128,44 +128,44 @@ SpikeTime_Mat_File = [
 
     # Examples / presets (keep commented; enable as needed):
     # "patient_data/s531/day1_baseline/spikeTime_p2.mat",
-    # r"kilosort:F:\rat data\m360\shank0\imec0\kilosort4",
-    # r"kilosort:F:\rat data\m360\shank1\imec0\kilosort4",
-    # r"kilosort:F:\rat data\m360\shank2\imec0\kilosort4",
-    # r"kilosort:F:\rat data\m360\shank3\imec0\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank0\imec0\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank1\imec0\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank2\imec0\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank3\imec0\kilosort4",
 
-    # r"kilosort:F:\rat data\m360\shank0\imec1\kilosort4",
-    # r"kilosort:F:\rat data\m360\shank1\imec1\kilosort4",
-    # r"kilosort:F:\rat data\m360\shank2\imec1\kilosort4",
-    # r"kilosort:F:\rat data\m360\shank3\imec1\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank0\imec1\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank1\imec1\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank2\imec1\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank3\imec1\kilosort4",
 
-    # r"kilosort:F:\rat data\m360\shank0\imec2\kilosort4",
-    # r"kilosort:F:\rat data\m360\shank1\imec2\kilosort4",
-    # r"kilosort:F:\rat data\m360\shank2\imec2\kilosort4",
-    # r"kilosort:F:\rat data\m360\shank3\imec2\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank0\imec2\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank1\imec2\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank2\imec2\kilosort4",
+    # r"kilosort:H:\rat data\m360\shank3\imec2\kilosort4",
 
 
-    # r"kilosort:F:\rat data\m361\shank0\imec0\kilosort4",
-    # r"kilosort:F:\rat data\m361\shank1\imec0\kilosort4",
-    # r"kilosort:F:\rat data\m361\shank2\imec0\kilosort4",
-    # r"kilosort:F:\rat data\m361\shank3\imec0\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank0\imec0\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank1\imec0\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank2\imec0\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank3\imec0\kilosort4",
 
-    # r"kilosort:F:\rat data\m361\shank0\imec1\kilosort4",
-    # r"kilosort:F:\rat data\m361\shank1\imec1\kilosort4",
-    # r"kilosort:F:\rat data\m361\shank2\imec1\kilosort4",
-    # r"kilosort:F:\rat data\m361\shank3\imec1\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank0\imec1\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank1\imec1\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank2\imec1\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank3\imec1\kilosort4",
 
-    # r"kilosort:F:\rat data\m361\shank0\imec2\kilosort4",
-    # r"kilosort:F:\rat data\m361\shank1\imec2\kilosort4",
-    # r"kilosort:F:\rat data\m361\shank2\imec2\kilosort4",
-    # r"kilosort:F:\rat data\m361\shank3\imec2\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank0\imec2\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank1\imec2\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank2\imec2\kilosort4",
+    # r"kilosort:H:\rat data\m361\shank3\imec2\kilosort4",
 
-    # r"kilosortset:F:\rat data\m360\shank0\imec0\kilosort4;F:\rat data\m360\shank1\imec0\kilosort4;F:\rat data\m360\shank2\imec0\kilosort4;F:\rat data\m360\shank3\imec0\kilosort4",
-    # r"kilosortset:F:\rat data\m360\shank0\imec1\kilosort4;F:\rat data\m360\shank1\imec1\kilosort4;F:\rat data\m360\shank2\imec1\kilosort4;F:\rat data\m360\shank3\imec1\kilosort4",
-    # r"kilosortset:F:\rat data\m360\shank0\imec2\kilosort4;F:\rat data\m360\shank1\imec2\kilosort4;F:\rat data\m360\shank2\imec2\kilosort4;F:\rat data\m360\shank3\imec2\kilosort4",
+    # r"kilosortset:H:\rat data\m360\shank0\imec0\kilosort4;H:\rat data\m360\shank1\imec0\kilosort4;H:\rat data\m360\shank2\imec0\kilosort4;H:\rat data\m360\shank3\imec0\kilosort4",
+    # r"kilosortset:H:\rat data\m360\shank0\imec1\kilosort4;H:\rat data\m360\shank1\imec1\kilosort4;H:\rat data\m360\shank2\imec1\kilosort4;H:\rat data\m360\shank3\imec1\kilosort4",
+    # r"kilosortset:H:\rat data\m360\shank0\imec2\kilosort4;H:\rat data\m360\shank1\imec2\kilosort4;H:\rat data\m360\shank2\imec2\kilosort4;H:\rat data\m360\shank3\imec2\kilosort4",
    
-    # r"kilosortset:F:\rat data\m361\shank0\imec0\kilosort4;F:\rat data\m361\shank1\imec0\kilosort4;F:\rat data\m361\shank2\imec0\kilosort4;F:\rat data\m361\shank3\imec0\kilosort4",
-    # r"kilosortset:F:\rat data\m361\shank0\imec1\kilosort4;F:\rat data\m361\shank1\imec1\kilosort4;F:\rat data\m361\shank2\imec1\kilosort4;F:\rat data\m361\shank3\imec1\kilosort4",
-    # r"kilosortset:F:\rat data\m361\shank0\imec2\kilosort4;F:\rat data\m361\shank1\imec2\kilosort4;F:\rat data\m361\shank2\imec2\kilosort4;F:\rat data\m361\shank3\imec2\kilosort4",
+    # r"kilosortset:H:\rat data\m361\shank0\imec0\kilosort4;H:\rat data\m361\shank1\imec0\kilosort4;H:\rat data\m361\shank2\imec0\kilosort4;H:\rat data\m361\shank3\imec0\kilosort4",
+    # r"kilosortset:H:\rat data\m361\shank0\imec1\kilosort4;H:\rat data\m361\shank1\imec1\kilosort4;H:\rat data\m361\shank2\imec1\kilosort4;H:\rat data\m361\shank3\imec1\kilosort4",
+    # r"kilosortset:H:\rat data\m361\shank0\imec2\kilosort4;H:\rat data\m361\shank1\imec2\kilosort4;H:\rat data\m361\shank2\imec2\kilosort4;H:\rat data\m361\shank3\imec2\kilosort4",
 
 
     # "patient_data/s531/day1_test/spikeTime_p2.mat",
@@ -183,6 +183,106 @@ SpikeTime_Mat_File = [
     # "patient_data/s531/day4_baseline/spikeTime_p5.mat",
 
 
+    #GNAO1####
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec0",
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec0",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec0;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec0",
+
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec1",
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec1",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec1;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec1",
+
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec2",
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec2",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec2;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec2",
+
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec3",
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec3",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec3;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec3",
+
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec0",
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec0",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec0;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec0",
+
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec1",
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec1",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec1;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec1",
+
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec2",
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec2",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec2;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec2",
+
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec3",
+    r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec3",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec3;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec3",
+    
+    #control mice 401####
+    r"kilosort:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec0",
+    r"kilosort:H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec0",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec0;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec0",
+
+    r"kilosort:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec1",
+    r"kilosort:H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec1",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec1;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec1",
+
+    r"kilosort:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec2",
+    r"kilosort:H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec2",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec2;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec2",
+
+    r"kilosort:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec3",
+    r"kilosort:H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec3",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec3;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec3",
+
+    r"kilosort:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec0",
+    r"kilosort:H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec0",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec0;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec0",
+
+    r"kilosort:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec1",
+    r"kilosort:H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec1",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec1;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec1",
+
+    r"kilosort:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec2",
+    r"kilosort:H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec2",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec2;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec2",
+
+    r"kilosort:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec3",
+    r"kilosort:H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec3",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec3;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec3",
+
+    r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec0",
+    r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec0",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec0;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec0",
+
+    r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec1",
+    r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec1",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec1;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec1",
+
+    r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec2",
+    r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec2",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec2;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec2",
+
+    r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec3",
+    r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec3",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec3;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec3",
+
+    r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec0",
+    r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec0",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec0;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec0",
+
+    r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec1",
+    r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec1",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec1;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec1",
+
+    r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec2",
+    r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec2",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec2;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec2",
+
+    r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec3",
+    r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec3",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec3;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec3",
+
+
+
 ]
 
 # ============================================================
@@ -190,7 +290,8 @@ SpikeTime_Mat_File = [
 # ============================================================
 # Single CSV with bilateral proxy (main.py when PLOT_CORRELATION_GRAPH / COMPUTE_PROXY_VS_FR / PLOT_PROXY_PANEL).
 # Path may be absolute or relative to the repository root. Time column is in seconds.
-PROXY_CSV = r"F:\s531_binary\period2_baseline\offline\hemisphere_neo_binned.csv"  # e.g. r"F:\data\session_proxies.csv"
+
+PROXY_CSV = r"H:\s531_binary\period2_baseline\offline\hemisphere_neo_binned.csv"  # e.g. r"H:\data\session_proxies.csv"
 PROXY_TIME_COL = "time_s"
 PROXY_LEFT_COL = "hemisphere_L_median_proxy"
 PROXY_RIGHT_COL = "hemisphere_R_median_proxy"
@@ -204,10 +305,10 @@ PROXY_ROOT = None
 # Kilosort 4 (see pipeline/kilosort_loader.py). Used when a dataset entry is ``kilosort:<path/to/kilosort4>``.
 # good_only: keep only clusters with KSLabel ``good`` in cluster_group.tsv (False = include MUA/noise too).
 # skip_pipeline_snr_filter: Kilosort units have NaN SNR here; True skips SNR_MIN/SNR_MAX in build_cache (FR_MIN_HZ still applies).
-# max_duration_s: None = full recording; set e.g. 60.0 to use only spikes in the first 60 seconds (for quick tests).
+# max_duration_s: None = full recording; set e.g. 60.0 to use only spikes in the first 60 seconds
 KILOSORT_GOOD_ONLY = True
 KILOSORT_SKIP_PIPELINE_SNR_FILTER = True
-KILOSORT_MAX_DURATION_S = None  # e.g. 60.0 for first 60 s only
+KILOSORT_MAX_DURATION_S = 5  # e.g. 60.0 for first 60 s only
 # For Kilosort synthetic names ``rat_*_shankN_*``: group/color by shank like regions (infer_region → shank0, …).
 KILOSORT_COLOR_BY_SHANK = True
 
@@ -217,7 +318,7 @@ KILOSORT_WRITE_SPIKETIME_MAT = False
 # Duplicate a copy of the main SangerLab HTML into one flat folder (gallery).
 # The original output folder structure remains unchanged.
 DUPLICATE_SANGER_HTML = True
-DUPLICATE_SANGER_HTML_DIR = Path(r"F:\SangerLabBursts\sanger_html_gallery_seperated")
+DUPLICATE_SANGER_HTML_DIR = Path(r"H:\SangerLabBursts\sanger_html_gallery_seperated")
 
 # ============================================================
 # OUTPUT ROOTS (NEW LAYOUT)
@@ -226,12 +327,12 @@ DUPLICATE_SANGER_HTML_DIR = Path(r"F:\SangerLabBursts\sanger_html_gallery_sepera
 #   <METHOD_ROOT>\<patient>\<PeriodN>\<run_tag>\...
 #
 # Examples:
-#   F:\SangerLabBursts_RS\s531\Period3\<run_tag>\...
-#   F:\SangerLabBursts_maxISI\s531\Period3\<run_tag>\...
-OUTPUT_ROOT_RS = Path(r"F:\SangerLabBursts_RS")
-OUTPUT_ROOT_RS_MOUSE = Path(r"F:\mouse_RS")
-OUTPUT_ROOT_MAXISI = Path(r"F:\SangerLabBursts_maxISI")
-OUTPUT_ROOT_ALPHA_MEANISI = Path(r"F:\SangerLabBursts_alphaMeanISI")
+#   H:\SangerLabBursts_RS\s531\Period3\<run_tag>\...
+#   H:\SangerLabBursts_maxISI\s531\Period3\<run_tag>\...
+OUTPUT_ROOT_RS = Path(r"H:\SangerLabBursts_RS")
+OUTPUT_ROOT_RS_MOUSE = Path(r"H:\mouse_RS")
+OUTPUT_ROOT_MAXISI = Path(r"H:\SangerLabBursts_maxISI")
+OUTPUT_ROOT_ALPHA_MEANISI = Path(r"H:\SangerLabBursts_alphaMeanISI")
 
 # Backwards-compat alias used by some proxy scripts as a default. Interpreted as the
 # RankSurprise root under the new layout.
@@ -239,7 +340,7 @@ BURST_ROOT = OUTPUT_ROOT_RS
 
 # Root for proxy-analysis outputs from the current workflow.
 # Change this to redirect all proxy analysis outputs (e.g. to D_Drive).
-PROXY_ANALYSIS_ROOT = Path(r"F:\SangerLabBursts\proxy_analysis")
+PROXY_ANALYSIS_ROOT = Path(r"H:\SangerLabBursts\proxy_analysis")
 
 # Run tag for proxy-analysis runs. Must match a rankSurprise subdir under
 # BURST_ROOT/patient/PeriodN/.
@@ -304,7 +405,10 @@ REGION_SPAN_ONSET_PLUS_LENGTH = True
 # ============================================================
 # Shared across burst detectors unless a method-specific override is used.
 MIN_SPIKES_IN_BURST = 3
-MIN_BURST_DURATION = 0  # ms
+MIN_BURST_DURATION = 50  # ms
+# Optional upper bound for burst duration (ms). When set (not None), bursts/windows
+# longer than this are dropped at the stage(s) where duration constraints apply.
+MAX_BURST_DURATION = 10000
 ibi_merge_factor = 0
 
 # If True: MIN_BURST_DURATION is applied at ALL stages (unit, region, and network).
@@ -346,7 +450,7 @@ RS_alpha_stage1 = -np.log(RS_alpha_percentage_stage1)
 RS_WIN_SHUFF_STAGE1_ENABLE: bool = True
 RS_WIN_SHUFF_WINDOW_MS: float = 200.0
 RS_WIN_SHUFF_BIN_MS: float = 10.0
-RS_WIN_SHUFF_SEED: int = 456
+RS_WIN_SHUFF_SEED: int = RS_OFFSET_NULL_SEED
 # Auto sizing from recording duration:
 #   window_ms = AUTO_WINDOW_FRACTION_RECORDING * recording_ms
 #   bin_ms    = AUTO_BIN_FRACTION_OF_WINDOW   * window_ms
@@ -363,7 +467,7 @@ RS_WIN_SHUFF_AUTO_BIN_MAX_MS: float = 1000.0
 # - nonoverlap: disjoint chunks [0,L), [L,2L), ...
 # - sliding: fixed chunk length L with stride L*(1-overlap_fraction)
 # - custom: explicit non-overlapping windows from RS_STAGE1_CUSTOM_WINDOWS_S (seconds)
-RS_STAGE1_LOCAL_SEGMENT_ENABLE: bool = True
+RS_STAGE1_LOCAL_SEGMENT_ENABLE: bool = False
 RS_STAGE1_SEGMENT_MODE: str = "nonoverlap"  # "nonoverlap" | "sliding" | "custom"
 # RS_STAGE1_SEGMENT_MODE: str = "sliding"  # "nonoverlap" | "sliding" | "custom"
 # RS_STAGE1_SEGMENT_MODE: str = "custom"  # "nonoverlap" | "sliding" | "custom"
@@ -399,14 +503,14 @@ MIN_UNIQUE_CHANNELS_REGION = 1
 MIN_UNIQUE_CHANNELS_NETWORK = 1
 # Region-level participation requirement for network bursts.
 # 1 preserves current behavior; >=2 enforces cross-region network events.
-MIN_UNIQUE_REGIONS_NETWORK = 1
+MIN_UNIQUE_REGIONS_NETWORK = 2
 
 # Parameter sweeps
-RS_ALPHA_SETS = [ (0.05,    0.03,    0.02),(0.03,    0.02,    0.02), (0.08,    0.05,    0.03)] # (stage1, region, network)
+RS_ALPHA_SETS = [ (0.03,    0.02,    0.02), (0.05,    0.03,    0.02), (0.08,    0.05,    0.03)] # (stage1, region, network)
 # Optional sweep for Stage-1 WIN-SHUFF parameters (window_ms, bin_ms).
 # These are iterated similarly to RS_ALPHA_SETS in main.py when
 # RS_WIN_SHUFF_AUTO_FROM_RECORDING is False (fixed-size mode).
-WIN_SHUFF_PARAM_SETS = [(500.0, 25.0)]  # (window_ms, bin_ms)
+WIN_SHUFF_PARAM_SETS = []  # (window_ms, bin_ms)
 
 # ============================================================
 # ALTERNATIVE DETECTOR PARAMETERS
@@ -488,6 +592,8 @@ REGION_COLORS: dict[str, str] = {
     "CMCL": "rgb(253, 153, 255)",
     "VOSTN": "rgb(255, 140, 0)",
     "VIM": "rgb(0, 160, 0)",
+
+
 }
 
 # Used when KILOSORT_COLOR_BY_SHANK and electrode names contain ``shankN`` (see infer_shank / infer_region).
@@ -500,6 +606,8 @@ SHANK_COLORS: dict[str, str] = {
     "shank5": "rgb(180, 120, 40)",
     "shank6": "rgb(100, 100, 255)",
     "shank7": "rgb(255, 80, 80)",
+    "shank13": "rgb(60, 110, 230)",
+    "shank24": "rgb(255, 140, 0)",
 }
 
 REGION_DISPLAY: dict[str, str] = {
@@ -524,4 +632,6 @@ REGION_DISPLAY: dict[str, str] = {
     "shank5": "Shank 5",
     "shank6": "Shank 6",
     "shank7": "Shank 7",
+    "shank13": "Shank 13",
+    "shank24": "Shank 24",
 }

@@ -35,20 +35,18 @@ def dataset_labels_any(spec: str) -> tuple[str, str]:
     kind, path = parse_dataset_spec(spec)
     if kind == "kilosort":
         patient, period = dataset_labels_kilosort(path)
-        if KILOSORT_RASTER_GROUP_BY_SHANK:
-            patient = f"{patient}_separated"
-        return patient, period
-    if kind == "kilosortset":
+    elif kind == "kilosortset":
         first = path.split(";", 1)[0].strip()
         patient, period = dataset_labels_kilosort(first)
-        # patient ≈ m360_shank0_imec0 → output folder m360_imec0 (session + probe)
-        parts = patient.split("_")
-        if len(parts) >= 3:
-            patient = f"{parts[0]}_{parts[-1]}"
-        if KILOSORT_RASTER_GROUP_BY_SHANK:
-            patient = f"{patient}_separated"
-        return patient, period
-    return dataset_labels(path)
+    else:
+        return dataset_labels(path)
+
+    # Compact label for titles/prints: first + last underscore token
+    # (e.g. M415_gate..._imec1 → M415_imec1; legacy rat m360_shank0_imec0 → m360_imec0).
+    parts = patient.split("_")
+    if len(parts) >= 3:
+        patient = f"{parts[0]}_{parts[-1]}"
+    return patient, period
 
 
 def compute_recording_duration_s(spike_struct) -> float:
@@ -75,9 +73,20 @@ def parse_electrode(elec: str, combine_numbered_regions: bool | None = None) -> 
 
 
 def infer_shank(elec: str) -> str | None:
-    """Parse ``shankN`` from Kilosort-style names like ``rat_*_shank0_imec0_u12_L_0_...``."""
-    m = re.search(r"(shank\d+)", str(elec), re.IGNORECASE)
-    return m.group(1).lower() if m else None
+    """
+    Parse shank id from synthetic Kilosort electrode names (``rat_*_...``).
+
+    1. ``shankN`` / ``ShankN`` anywhere in the string (covers rat legacy paths and M415-style gates).
+    2. Else M401-style ``SNN_g`` (e.g. ``S13_g0`` → ``shank13``). Precedence: (1) wins if both match.
+    """
+    s = str(elec)
+    m = re.search(r"(shank\d+)", s, re.IGNORECASE)
+    if m:
+        return m.group(1).lower()
+    m2 = re.search(r"(?<![A-Za-z])S(\d+)_g", s, re.IGNORECASE)
+    if m2:
+        return f"shank{int(m2.group(1))}"
+    return None
 
 
 def infer_depth_um(elec: str) -> float | None:
@@ -308,6 +317,7 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
         "FR_MIN_HZ": FR_MIN_HZ,
         "MIN_SPIKES_IN_BURST": MIN_SPIKES_IN_BURST,
         "MIN_BURST_DURATION": MIN_BURST_DURATION,
+        "MAX_BURST_DURATION": MAX_BURST_DURATION,
         "pooling": pooling_toggle,
         "MIN_UNIQUE_CHANNELS_NETWORK": MIN_UNIQUE_CHANNELS_NETWORK,
     }
@@ -358,9 +368,8 @@ def run_tag_from_params(params: dict) -> str:
     # Keep tags compact and stable over time. Use underscores for small joins and
     # double-underscores for major sections (easy to visually scan).
     #
-    # Common suffix used by all methods (requested: keep SNR range + FR).
-    # Match desired folder naming: FR value without "Hz" suffix.
-    common_suffix = f"SNR={params['SNR_MIN']}-{params['SNR_MAX']}_FR={params['FR_MIN_HZ']}"
+    # Common suffix used by all methods (requested: keep SNR range).
+    common_suffix = f"SNR={params['SNR_MIN']}-{params['SNR_MAX']}"
     parts: list[str] = []
 
     if m == "maxISI":
@@ -368,7 +377,9 @@ def run_tag_from_params(params: dict) -> str:
             f"thr={params['base_thr']}",
             f"ibi={params['ibi_merge_factor']}",
             f"minSpk={params['MIN_SPIKES_IN_BURST']}",
+            f"FR={params['FR_MIN_HZ']}hz",
             f"minDur={params['MIN_BURST_DURATION']}ms",
+            *([f"maxDur={params['MAX_BURST_DURATION']}ms"] if params.get("MAX_BURST_DURATION") is not None else []),
             common_suffix,
         ]
         if params["pooling"]:
@@ -379,7 +390,9 @@ def run_tag_from_params(params: dict) -> str:
             f"range={params['min_thr_ms']}-{params['max_thr_ms']}ms",
             f"ibi={params['ibi_merge_factor']}",
             f"minSpk={params['MIN_SPIKES_IN_BURST']}",
+            f"FR={params['FR_MIN_HZ']}hz",
             f"minDur={params['MIN_BURST_DURATION']}ms",
+            *([f"maxDur={params['MAX_BURST_DURATION']}ms"] if params.get("MAX_BURST_DURATION") is not None else []),
             common_suffix,
         ]
         if params["pooling"]:
@@ -397,19 +410,24 @@ def run_tag_from_params(params: dict) -> str:
         a_pct = (int(round(100 * ac)), int(round(100 * ar)), int(round(100 * an)))
         lims = (int(params["RS_limit_cluster"]), int(params["RS_limit_region"]), int(params["RS_limit_network"]))
 
-        head = f"RS=({a_pct[0]},{a_pct[1]},{a_pct[2]})_({lims[0]},{lims[1]},{lims[2]})"
+        head = f"({a_pct[0]},{a_pct[1]},{a_pct[2]})_({lims[0]},{lims[1]},{lims[2]})"
+        fr_txt = _fmt_num(float(params["FR_MIN_HZ"]))
+        max_dur_txt = (
+            f"__maxDur={params['MAX_BURST_DURATION']}ms"
+            if params.get("MAX_BURST_DURATION") is not None
+            else ""
+        )
         mins = (
             f"minSpk={params['MIN_SPIKES_IN_BURST']}"
+            f"__FR={fr_txt}hz"
             f"__minDur={params['MIN_BURST_DURATION']}ms"
+            f"{max_dur_txt}"
             f"__minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}"
             f"__minReg={params['MIN_UNIQUE_REGIONS_NETWORK']}"
         )
         # Preferred style: ..._SNR=..._FR=..._region__network
         toggles = ""
-        if params.get("region_burst"):
-            toggles += "_region"
-        if params.get("network_burst"):
-            toggles += "__network" if toggles else "network"
+        # (Requested) omit region/network toggles from the run tag.
         if params.get("RS_offset_null"):
             toggles += "__offNull" if toggles else "offNull"
         if params.get("RS_win_shuff_stage1"):
@@ -454,7 +472,8 @@ def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bo
     an = float(params["RS_alpha_network"])
     a_pct = (int(round(100 * ac)), int(round(100 * ar)), int(round(100 * an)))
     lims = (int(params["RS_limit_cluster"]), int(params["RS_limit_region"]), int(params["RS_limit_network"]))
-    head = f"RS=({a_pct[0]},{a_pct[1]},{a_pct[2]})_({lims[0]},{lims[1]},{lims[2]})"
+    head = f"({a_pct[0]},{a_pct[1]},{a_pct[2]})_({lims[0]},{lims[1]},{lims[2]})"
+    fr_txt = _fmt_num(float(params["FR_MIN_HZ"]))
 
     flags = []
     if good_only:
@@ -463,18 +482,21 @@ def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bo
         flags.append("SepShank")
     flags_str = ("_" + "_".join(flags)) if flags else ""
 
+    max_dur_txt = (
+        f"__maxDur={params['MAX_BURST_DURATION']}ms"
+        if params.get("MAX_BURST_DURATION") is not None
+        else ""
+    )
     mins = (
         f"minSpk={params['MIN_SPIKES_IN_BURST']}"
+        f"__FR={fr_txt}hz"
         f"__minDur={params['MIN_BURST_DURATION']}ms"
+        f"{max_dur_txt}"
         f"__minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}"
         f"__minReg={params['MIN_UNIQUE_REGIONS_NETWORK']}"
     )
 
     toggles = ""
-    if params.get("region_burst"):
-        toggles += "_region"
-    if params.get("network_burst"):
-        toggles += "__network" if toggles else "_network"
     if params.get("RS_win_shuff_stage1"):
         win_w = _fmt_num(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
         win_b = _fmt_num(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
@@ -488,38 +510,71 @@ def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bo
     return f"{head}{flags_str}_{mins}{toggles}"
 
 
-def figure_title_from_params(params: dict, patient: str, period: str) -> str:
+def figure_title_from_params(
+    params: dict, patient: str, period: str, *, compact_kilosort: bool = False,
+) -> str:
     """Human-readable figure title from run parameters."""
     m = params["method"]
-    header = f"{patient} \u2022 {period} \u2014 {m}"
+    if compact_kilosort:
+        header = f"{patient} \u2014 {m}"
+    else:
+        header = f"{patient} \u2022 {period} \u2014 {m}"
 
     if m == "maxISI":
-        detail = (
-            f"{params['SNR_MIN']}\u2264SNR\u2264{params['SNR_MAX']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
-            f"thr={params['base_thr']}  IBI\u00d7{params['ibi_merge_factor']}  "
-            f"spikes\u2265{params['MIN_SPIKES_IN_BURST']}  dur\u2265{params['MIN_BURST_DURATION']}ms"
-        )
+        if compact_kilosort:
+            detail = (
+                f"thr={params['base_thr']}  IBI\u00d7{params['ibi_merge_factor']}  "
+                f"dur\u2265{params['MIN_BURST_DURATION']}ms"
+            )
+        else:
+            detail = (
+                f"{params['SNR_MIN']}\u2264SNR\u2264{params['SNR_MAX']}  "
+                f"thr={params['base_thr']}  IBI\u00d7{params['ibi_merge_factor']}  "
+                f"dur\u2265{params['MIN_BURST_DURATION']}ms"
+            )
     elif m == "alpha_meanISI":
-        detail = (
-            f"{params['SNR_MIN']}\u2264SNR\u2264{params['SNR_MAX']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
-            f"\u03b1={params['alpha']}  thr=[{params['min_thr_ms']},{params['max_thr_ms']}]ms  "
-            f"IBI\u00d7{params['ibi_merge_factor']}  "
-            f"spikes\u2265{params['MIN_SPIKES_IN_BURST']}  dur\u2265{params['MIN_BURST_DURATION']}ms"
-        )
+        if compact_kilosort:
+            detail = (
+                f"\u03b1={params['alpha']}  thr=[{params['min_thr_ms']},{params['max_thr_ms']}]ms  "
+                f"IBI\u00d7{params['ibi_merge_factor']}  "
+                f"dur\u2265{params['MIN_BURST_DURATION']}ms"
+            )
+        else:
+            detail = (
+                f"{params['SNR_MIN']}\u2264SNR\u2264{params['SNR_MAX']}  "
+                f"\u03b1={params['alpha']}  thr=[{params['min_thr_ms']},{params['max_thr_ms']}]ms  "
+                f"IBI\u00d7{params['ibi_merge_factor']}  "
+                f"dur\u2265{params['MIN_BURST_DURATION']}ms"
+            )
     elif m == "rankSurprise":
-        detail = (
-            f"{params['SNR_MIN']}\u2264SNR\u2264{params['SNR_MAX']}  FR\u2265{params['FR_MIN_HZ']}Hz  "
-            f"\u03b1c={params['RS_alpha_cluster']:.0%}  "
-            f"\u03b1r={params['RS_alpha_region']:.0%}  "
-            f"\u03b1n={params['RS_alpha_network']:.0%}  "
-            f"spikes\u2265{params['MIN_SPIKES_IN_BURST']}  "
-            f"region={'on' if params['region_burst'] else 'off'}  "
-            f"network={'on' if params['network_burst'] else 'off'}"
-        )
+        if compact_kilosort:
+            def _fmt_num(v: float) -> str:
+                fv = float(v)
+                if np.isfinite(fv) and abs(fv - round(fv)) < 1e-9:
+                    return str(int(round(fv)))
+                return f"{fv:g}"
+
+            detail = (
+                f"\u03b1c={params['RS_alpha_cluster']:.0%}  "
+                f"\u03b1r={params['RS_alpha_region']:.0%}  "
+                f"\u03b1n={params['RS_alpha_network']:.0%}  "
+            )
+            if params.get("RS_win_shuff_stage1"):
+                win_w = _fmt_num(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
+                win_b = _fmt_num(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
+                detail += f"WinShuff({win_w},{win_b})  "
+        else:
+            detail = (
+                f"{params['SNR_MIN']}\u2264SNR\u2264{params['SNR_MAX']}  "
+                f"\u03b1c={params['RS_alpha_cluster']:.0%}  "
+                f"\u03b1r={params['RS_alpha_region']:.0%}  "
+                f"\u03b1n={params['RS_alpha_network']:.0%}  "
+            )
         if params.get("RS_offset_null"):
             mx = params.get("RS_offset_null_max_offset_ms")
             mx_txt = f"{float(mx):.0f}ms" if mx is not None else "auto"
-            detail += f"  offsetNull=on(seed={params.get('RS_offset_null_seed')}, max={mx_txt})"
+            # Presentation rename: show channel shift range, not the random seed.
+            detail += f"  ChanShift({mx_txt})"
     else:
         detail = ""
 
