@@ -3,6 +3,8 @@
 !.gitignore
 !config.py
 !main.py
+!plot_firing_rates.py
+!plot_isi_hist.py
 !run_datasets_parallel.ps1
 
 # Pipeline: allow directory then ignore contents except these files
