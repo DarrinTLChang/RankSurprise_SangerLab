@@ -128,44 +128,45 @@ SpikeTime_Mat_File = [
 
     # Examples / presets (keep commented; enable as needed):
     # "patient_data/s531/day1_baseline/spikeTime_p2.mat",
-    # r"kilosort:H:\rat data\m360\shank0\imec0\kilosort4",
-    # r"kilosort:H:\rat data\m360\shank1\imec0\kilosort4",
-    # r"kilosort:H:\rat data\m360\shank2\imec0\kilosort4",
-    # r"kilosort:H:\rat data\m360\shank3\imec0\kilosort4",
 
-    # r"kilosort:H:\rat data\m360\shank0\imec1\kilosort4",
-    # r"kilosort:H:\rat data\m360\shank1\imec1\kilosort4",
-    # r"kilosort:H:\rat data\m360\shank2\imec1\kilosort4",
-    # r"kilosort:H:\rat data\m360\shank3\imec1\kilosort4",
+    r"kilosort:H:\rat data\m360\shank0\imec0\kilosort4",
+    r"kilosort:H:\rat data\m360\shank1\imec0\kilosort4",
+    r"kilosort:H:\rat data\m360\shank2\imec0\kilosort4",
+    r"kilosort:H:\rat data\m360\shank3\imec0\kilosort4",
 
-    # r"kilosort:H:\rat data\m360\shank0\imec2\kilosort4",
-    # r"kilosort:H:\rat data\m360\shank1\imec2\kilosort4",
-    # r"kilosort:H:\rat data\m360\shank2\imec2\kilosort4",
-    # r"kilosort:H:\rat data\m360\shank3\imec2\kilosort4",
+    r"kilosort:H:\rat data\m360\shank0\imec1\kilosort4",
+    r"kilosort:H:\rat data\m360\shank1\imec1\kilosort4",
+    r"kilosort:H:\rat data\m360\shank2\imec1\kilosort4",
+    r"kilosort:H:\rat data\m360\shank3\imec1\kilosort4",
+
+    r"kilosort:H:\rat data\m360\shank0\imec2\kilosort4",
+    r"kilosort:H:\rat data\m360\shank1\imec2\kilosort4",
+    r"kilosort:H:\rat data\m360\shank2\imec2\kilosort4",
+    r"kilosort:H:\rat data\m360\shank3\imec2\kilosort4",
 
 
-    # r"kilosort:H:\rat data\m361\shank0\imec0\kilosort4",
-    # r"kilosort:H:\rat data\m361\shank1\imec0\kilosort4",
-    # r"kilosort:H:\rat data\m361\shank2\imec0\kilosort4",
-    # r"kilosort:H:\rat data\m361\shank3\imec0\kilosort4",
+    r"kilosort:H:\rat data\m361\shank0\imec0\kilosort4",
+    r"kilosort:H:\rat data\m361\shank1\imec0\kilosort4",
+    r"kilosort:H:\rat data\m361\shank2\imec0\kilosort4",
+    r"kilosort:H:\rat data\m361\shank3\imec0\kilosort4",
 
-    # r"kilosort:H:\rat data\m361\shank0\imec1\kilosort4",
-    # r"kilosort:H:\rat data\m361\shank1\imec1\kilosort4",
-    # r"kilosort:H:\rat data\m361\shank2\imec1\kilosort4",
-    # r"kilosort:H:\rat data\m361\shank3\imec1\kilosort4",
+    r"kilosort:H:\rat data\m361\shank0\imec1\kilosort4",
+    r"kilosort:H:\rat data\m361\shank1\imec1\kilosort4",
+    r"kilosort:H:\rat data\m361\shank2\imec1\kilosort4",
+    r"kilosort:H:\rat data\m361\shank3\imec1\kilosort4",
 
-    # r"kilosort:H:\rat data\m361\shank0\imec2\kilosort4",
-    # r"kilosort:H:\rat data\m361\shank1\imec2\kilosort4",
-    # r"kilosort:H:\rat data\m361\shank2\imec2\kilosort4",
-    # r"kilosort:H:\rat data\m361\shank3\imec2\kilosort4",
+    r"kilosort:H:\rat data\m361\shank0\imec2\kilosort4",
+    r"kilosort:H:\rat data\m361\shank1\imec2\kilosort4",
+    r"kilosort:H:\rat data\m361\shank2\imec2\kilosort4",
+    r"kilosort:H:\rat data\m361\shank3\imec2\kilosort4",
 
-    # r"kilosortset:H:\rat data\m360\shank0\imec0\kilosort4;H:\rat data\m360\shank1\imec0\kilosort4;H:\rat data\m360\shank2\imec0\kilosort4;H:\rat data\m360\shank3\imec0\kilosort4",
-    # r"kilosortset:H:\rat data\m360\shank0\imec1\kilosort4;H:\rat data\m360\shank1\imec1\kilosort4;H:\rat data\m360\shank2\imec1\kilosort4;H:\rat data\m360\shank3\imec1\kilosort4",
-    # r"kilosortset:H:\rat data\m360\shank0\imec2\kilosort4;H:\rat data\m360\shank1\imec2\kilosort4;H:\rat data\m360\shank2\imec2\kilosort4;H:\rat data\m360\shank3\imec2\kilosort4",
+    r"kilosortset:H:\rat data\m360\shank0\imec0\kilosort4;H:\rat data\m360\shank1\imec0\kilosort4;H:\rat data\m360\shank2\imec0\kilosort4;H:\rat data\m360\shank3\imec0\kilosort4",
+    r"kilosortset:H:\rat data\m360\shank0\imec1\kilosort4;H:\rat data\m360\shank1\imec1\kilosort4;H:\rat data\m360\shank2\imec1\kilosort4;H:\rat data\m360\shank3\imec1\kilosort4",
+    r"kilosortset:H:\rat data\m360\shank0\imec2\kilosort4;H:\rat data\m360\shank1\imec2\kilosort4;H:\rat data\m360\shank2\imec2\kilosort4;H:\rat data\m360\shank3\imec2\kilosort4",
    
-    # r"kilosortset:H:\rat data\m361\shank0\imec0\kilosort4;H:\rat data\m361\shank1\imec0\kilosort4;H:\rat data\m361\shank2\imec0\kilosort4;H:\rat data\m361\shank3\imec0\kilosort4",
-    # r"kilosortset:H:\rat data\m361\shank0\imec1\kilosort4;H:\rat data\m361\shank1\imec1\kilosort4;H:\rat data\m361\shank2\imec1\kilosort4;H:\rat data\m361\shank3\imec1\kilosort4",
-    # r"kilosortset:H:\rat data\m361\shank0\imec2\kilosort4;H:\rat data\m361\shank1\imec2\kilosort4;H:\rat data\m361\shank2\imec2\kilosort4;H:\rat data\m361\shank3\imec2\kilosort4",
+    r"kilosortset:H:\rat data\m361\shank0\imec0\kilosort4;H:\rat data\m361\shank1\imec0\kilosort4;H:\rat data\m361\shank2\imec0\kilosort4;H:\rat data\m361\shank3\imec0\kilosort4",
+    r"kilosortset:H:\rat data\m361\shank0\imec1\kilosort4;H:\rat data\m361\shank1\imec1\kilosort4;H:\rat data\m361\shank2\imec1\kilosort4;H:\rat data\m361\shank3\imec1\kilosort4",
+    r"kilosortset:H:\rat data\m361\shank0\imec2\kilosort4;H:\rat data\m361\shank1\imec2\kilosort4;H:\rat data\m361\shank2\imec2\kilosort4;H:\rat data\m361\shank3\imec2\kilosort4",
 
 
     # "patient_data/s531/day1_test/spikeTime_p2.mat",
@@ -188,103 +189,107 @@ SpikeTime_Mat_File = [
     #GNAO1####
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec0",
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec0",
-    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec0;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec0",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec0;H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec1;H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec2;H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec3",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec0;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec1;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec2;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec3",
 
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec1",
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec1",
-    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec1;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec1",
 
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec2",
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec2",
-    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec2;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec2",
 
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec3",
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec3",
-    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250509shank13_g0\M422_20250509shank13_g0_imec3;H:\Mouse\M422_GNAO1\M422_20250509shank24_g0\M422_20250509shank24_g0_imec3",
 
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec0",
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec0",
-    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec0;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec0",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec0;H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec1;H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec2;H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec3",
+    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec0;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec1;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec2;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec3",
 
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec1",
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec1",
-    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec1;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec1",
 
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec2",
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec2",
-    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec2;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec2",
 
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec3",
     r"kilosort:H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec3",
-    r"kilosortset:H:\Mouse\M422_GNAO1\M422_20250513shank13_g0\M422_20250513shank13_g0_imec3;H:\Mouse\M422_GNAO1\M422_20250513shank24_g0\M422_20250513shank24_g0_imec3",
     
     #control mice 401####
     r"kilosort:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec0",
     r"kilosort:H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec0",
-    r"kilosortset:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec0;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec0",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec0;H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec1;H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec2;H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec3",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec0;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec1;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec2;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec3",
 
     r"kilosort:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec1",
     r"kilosort:H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec1",
-    r"kilosortset:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec1;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec1",
 
     r"kilosort:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec2",
     r"kilosort:H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec2",
-    r"kilosortset:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec2;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec2",
 
     r"kilosort:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec3",
     r"kilosort:H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec3",
-    r"kilosortset:H:\Mouse\M401_WT\M401_20240911S13_g0\M401_20240911S13_g0_imec3;H:\Mouse\M401_WT\M401_20240911S24_g0\M401_20240911S24_g0_imec3",
 
     r"kilosort:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec0",
     r"kilosort:H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec0",
-    r"kilosortset:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec0;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec0",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec0;H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec1;H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec2;H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec3",
+    r"kilosortset:H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec0;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec1;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec2;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec3",
 
     r"kilosort:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec1",
     r"kilosort:H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec1",
-    r"kilosortset:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec1;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec1",
 
     r"kilosort:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec2",
     r"kilosort:H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec2",
-    r"kilosortset:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec2;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec2",
 
     r"kilosort:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec3",
     r"kilosort:H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec3",
-    r"kilosortset:H:\Mouse\M401_WT\M401_20240917S13_g0\M401_20240917S13_g0_imec3;H:\Mouse\M401_WT\M401_20240917S24_g0\M401_20240917S24_g0_imec3",
 
     r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec0",
     r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec0",
-    r"kilosortset:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec0;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec0",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec0;H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec1;H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec2;H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec3",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec0;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec1;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec2;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec3",
 
     r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec1",
     r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec1",
-    r"kilosortset:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec1;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec1",
 
     r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec2",
     r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec2",
-    r"kilosortset:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec2;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec2",
 
     r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec3",
     r"kilosort:H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec3",
-    r"kilosortset:H:\Mouse\M415_WT\M415_20250226Shank13_g0\M415_20250226Shank13_g0_imec3;H:\Mouse\M415_WT\M415_20250226Shank24_g0\M415_20250226Shank24_g0_imec3",
 
     r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec0",
     r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec0",
-    r"kilosortset:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec0;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec0",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec0;H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec1;H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec2;H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec3",
+    r"kilosortset:H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec0;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec1;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec2;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec3",
 
     r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec1",
     r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec1",
-    r"kilosortset:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec1;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec1",
 
     r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec2",
     r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec2",
-    r"kilosortset:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec2;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec2",
 
     r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec3",
     r"kilosort:H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec3",
-    r"kilosortset:H:\Mouse\M415_WT\M415_20250301Shank13_g0\M415_20250301Shank13_g0_imec3;H:\Mouse\M415_WT\M415_20250301Shank24_g0\M415_20250301Shank24_g0_imec3",
 
-
-
+    r"kilosortset:H:\Mouse\M402_WT\M402_20240828S13_g0\M402_20240828S13_g0_imec0;H:\Mouse\M402_WT\M402_20240828S13_g0\M402_20240828S13_g0_imec1;H:\Mouse\M402_WT\M402_20240828S13_g0\M402_20240828S13_g0_imec2",
+    r"kilosortset:H:\Mouse\M402_WT\M402_20240828S24_g0\M402_20240828S24_g0_imec0;H:\Mouse\M402_WT\M402_20240828S24_g0\M402_20240828S24_g0_imec1;H:\Mouse\M402_WT\M402_20240828S24_g0\M402_20240828S24_g0_imec2",
+    r"kilosortset:H:\Mouse\M402_WT\M402_20240830S13_g0\M402_20240830S13_g0_imec0;H:\Mouse\M402_WT\M402_20240830S13_g0\M402_20240830S13_g0_imec1;H:\Mouse\M402_WT\M402_20240830S13_g0\M402_20240830S13_g0_imec2",
+    r"kilosortset:H:\Mouse\M402_WT\M402_20240830S24_g0\M402_20240830S24_g0_imec0;H:\Mouse\M402_WT\M402_20240830S24_g0\M402_20240830S24_g0_imec1;H:\Mouse\M402_WT\M402_20240830S24_g0\M402_20240830S24_g0_imec2",
+    
+    r"kilosort:H:\Mouse\M402_WT\M402_20240828S13_g0\M402_20240828S13_g0_imec0",
+    r"kilosort:H:\Mouse\M402_WT\M402_20240828S24_g0\M402_20240828S24_g0_imec0",
+    r"kilosort:H:\Mouse\M402_WT\M402_20240828S13_g0\M402_20240828S13_g0_imec1",
+    r"kilosort:H:\Mouse\M402_WT\M402_20240828S24_g0\M402_20240828S24_g0_imec1",
+    r"kilosort:H:\Mouse\M402_WT\M402_20240828S13_g0\M402_20240828S13_g0_imec2",
+    r"kilosort:H:\Mouse\M402_WT\M402_20240828S24_g0\M402_20240828S24_g0_imec2",
+    
+    r"kilosort:H:\Mouse\M402_WT\M402_20240830S13_g0\M402_20240830S13_g0_imec0",
+    r"kilosort:H:\Mouse\M402_WT\M402_20240830S24_g0\M402_20240830S24_g0_imec0",
+    r"kilosort:H:\Mouse\M402_WT\M402_20240830S13_g0\M402_20240830S13_g0_imec1",
+    r"kilosort:H:\Mouse\M402_WT\M402_20240830S24_g0\M402_20240830S24_g0_imec1",
+    r"kilosort:H:\Mouse\M402_WT\M402_20240830S13_g0\M402_20240830S13_g0_imec2",
+    r"kilosort:H:\Mouse\M402_WT\M402_20240830S24_g0\M402_20240830S24_g0_imec2",
 ]
 
 # ============================================================
@@ -310,7 +315,7 @@ PROXY_ROOT = None
 # max_duration_s: None = full recording; set e.g. 60.0 to use only spikes in the first 60 seconds
 KILOSORT_GOOD_ONLY = True
 KILOSORT_SKIP_PIPELINE_SNR_FILTER = True
-KILOSORT_MAX_DURATION_S = 5  # e.g. 60.0 for first 60 s only
+KILOSORT_MAX_DURATION_S = 300  # e.g. 60.0 for first 60 s only
 # For Kilosort synthetic names ``rat_*_shankN_*``: group/color by shank like regions (infer_region → shank0, …).
 KILOSORT_COLOR_BY_SHANK = True
 
@@ -508,7 +513,7 @@ MIN_UNIQUE_CHANNELS_NETWORK = 1
 MIN_UNIQUE_REGIONS_NETWORK = 2
 
 # Parameter sweeps
-RS_ALPHA_SETS = [ (0.03,    0.02,    0.02), (0.05,    0.03,    0.02), (0.08,    0.05,    0.03)] # (stage1, region, network)
+RS_ALPHA_SETS = [(0.05,    0.03,    0.02)] # (stage1, region, network)
 # Optional sweep for Stage-1 WIN-SHUFF parameters (window_ms, bin_ms).
 # These are iterated similarly to RS_ALPHA_SETS in main.py when
 # RS_WIN_SHUFF_AUTO_FROM_RECORDING is False (fixed-size mode).
