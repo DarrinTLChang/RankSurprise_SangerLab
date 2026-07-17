@@ -30,7 +30,7 @@ Human DBS data use electrode strings like ``microGPi1_L_1_...``; **infer_region*
 Kilosort units get synthetic names like ``rat_m360_shank0_imec0_u{cid}_L_0_CommonFiltered`` (session/shank/imec
 from the folder path) so all units land on the **left** side for plotting. With **KILOSORT_COLOR_BY_SHANK** in
 config, **infer_region** returns ``shank0``, ``shank1``, … parsed from the electrode string, and **SHANK_COLORS**
-controls raster / coactivity / regional-burst colors (like brain regions for human data).
+controls raster and regional-burst colors (like brain regions for human data).
 """
 from __future__ import annotations
 
@@ -181,6 +181,8 @@ def _depth_um_by_cluster_from_templates(
         except Exception:
             continue
         if amp.size != n_ch:
+            continue
+        if not np.any(np.isfinite(amp)):
             continue
         peak_ch = int(np.nanargmax(amp))
         y = float(y_um[peak_ch])

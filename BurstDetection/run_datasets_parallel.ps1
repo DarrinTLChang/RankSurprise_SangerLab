@@ -55,7 +55,6 @@ if ($Indices.Count -gt 0) {
 }
 else {
     foreach ($job in $ContainsJobs) {
-        $n++
         $frags = $job -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ }
         if ($frags.Count -eq 0) {
             Write-Warning "Skipping empty ContainsJobs entry: $job"

@@ -6,18 +6,10 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
-from scipy.stats import rankdata
 
 from config import *
+from .numeric import moving_average
 from .utils import *
-
-
-def _moving_average(y: np.ndarray, window_bins: int) -> np.ndarray:
-    if window_bins is None or window_bins <= 1:
-        return y
-    kernel = np.ones(int(window_bins), dtype=float) / float(int(window_bins))
-    return np.convolve(y.astype(float), kernel, mode="same")
-
 
 def add_raster_row(
     fig: go.Figure,
@@ -52,7 +44,9 @@ def add_raster_row(
     if bursts_for_unit and show_burst_overlay:
         mask = np.zeros_like(spk, dtype=bool)
         for b in bursts_for_unit:
-            mask |= (spk >= b["Start_ms"]) & (spk <= b["End_ms"])
+            left = int(np.searchsorted(spk, float(b["Start_ms"]), side="left"))
+            right = int(np.searchsorted(spk, float(b["End_ms"]), side="right"))
+            mask[left:right] = True
         if mask.any():
             fig.add_trace(go.Scattergl(
                 x=spk[mask] / 1000.0,
@@ -65,81 +59,6 @@ def add_raster_row(
                 opacity=RASTER_OPACITY_BURST,
                 showlegend=False
             ), row=row, col=col)
-
-
-def add_coactivity_panel(fig: go.Figure, co_df: pd.DataFrame,
-                         record_len_s: float, row: int, col: int,
-                         bin_s: float, stride_s: float,
-                         connect: bool = True,
-                         smooth_sec: float = 0.0):
-    _df = co_df[pd.to_numeric(co_df["Window_start_s"], errors="coerce").notna()].copy()
-    _df["Window_start_s"] = _df["Window_start_s"].astype(float)
-    _df["Active_channels"] = _df["Active_channels"].astype(float)
-
-    x = _df["Window_start_s"].to_numpy() + (bin_s / 2.0)
-    y = _df["Active_channels"].to_numpy()
-
-    if smooth_sec and smooth_sec > 0:
-        smooth_bins = max(1, int(round(smooth_sec / stride_s)))
-        y = _moving_average(y, smooth_bins)
-
-    fig.add_trace(go.Scattergl(
-        x=x, y=y,
-        mode="lines+markers" if connect else "markers",
-        marker=dict(size=COACTIVITY_DOT_SIZE, color=BURST_CHANNELS_COLOR),
-        line=dict(color=BURST_CHANNELS_COLOR),
-        hovertemplate="t=%{x:.3f}s<br>Active=%{y}<extra></extra>",
-        name="Burst channels",
-        showlegend=False
-    ), row=row, col=col)
-
-    fig.update_xaxes(range=[0, record_len_s], row=row, col=col)
-
-
-def add_region_coactivity_panel(fig: go.Figure, df_reg: pd.DataFrame,
-                                record_len_s: float, row: int, col: int,
-                                bin_s: float, stride_s: float,
-                                connect: bool = True, smooth_sec: float = 0.0,
-                                show_legend: bool = True):
-    cols = [c for c in df_reg.columns if c not in ("Window_start_s", "Window_end_s")]
-    for region in sorted(cols):
-        colr = color_for_plot_group(str(region))
-
-        _df = df_reg[pd.to_numeric(df_reg["Window_start_s"], errors="coerce").notna()].copy()
-        _df["Window_start_s"] = _df["Window_start_s"].astype(float)
-        _df[region] = pd.to_numeric(_df[region], errors="coerce")
-
-        x = _df["Window_start_s"].to_numpy() + (bin_s / 2.0)
-        y = _df[region].to_numpy()
-
-        if smooth_sec and smooth_sec > 0:
-            smooth_bins = max(1, int(round(smooth_sec / stride_s)))
-            y = _moving_average(y, smooth_bins)
-
-        if REGIONAL_OUTLINE_WIDTH and REGIONAL_OUTLINE_WIDTH > 0:
-            fig.add_trace(go.Scattergl(
-                x=x, y=y,
-                mode="lines",
-                line=dict(color=REGIONAL_OUTLINE_COLOR, width=REGIONAL_OUTLINE_WIDTH),
-                marker=dict(size=0),
-                opacity=1.0,
-                hoverinfo="skip",
-                showlegend=False
-            ), row=row, col=col)
-
-        fig.add_trace(go.Scattergl(
-            x=x, y=y,
-            mode="lines",
-            line=dict(color=colr, width=REGIONAL_LINE_WIDTH),
-            marker=dict(size=0),
-            opacity=REGIONAL_OPACITY,
-            name=region,
-            legendgroup=region,
-            showlegend=show_legend,
-            hovertemplate="%{y}<extra></extra>"
-        ), row=row, col=col)
-
-    fig.update_xaxes(range=[0, record_len_s], row=row, col=col)
 
 
 def save_fig_interactive(fig: go.Figure, base_name):
@@ -296,33 +215,6 @@ def add_emg_panel(fig: go.Figure,
     )
 
 
-def plot_isi_rank(total_isi) -> go.Figure:
-    ranks = rankdata(total_isi, method="ordinal")
-
-    fig = go.Figure()
-    fig.add_trace(
-        go.Histogram(x=ranks, nbinsx=50, name="ISI ranks")
-    )
-    fig.update_layout(
-        title="ISI Rank Distribution",
-        xaxis_title="Rank",
-        yaxis_title="Count"
-    )
-    return fig
-
-
-def _compute_network_bars(network_windows, all_bursts):
-    """Convert onset windows + burst list into merged bar intervals (seconds)."""
-    if not network_windows:
-        return []
-    bars = bars_from_onset_windows_using_all_bursts(
-        network_windows, all_bursts,
-        time_unit="ms", min_unique_channels=1, channel_mode="elec_cluster",
-        use_onset_plus_length=NETWORK_SPAN_ONSET_PLUS_LENGTH,
-    )
-    return _merge_windows_s(bars)
-
-
 def _fr_y_range(fr_df: pd.DataFrame, fixed_max: float | None = None):
     """Return (y0, y1) for FR panel. If fixed_max set, use [0, fixed_max] for consistent scale."""
     if fixed_max is not None and fixed_max > 0:
@@ -395,6 +287,7 @@ def make_sangerlab_presentation_figure(
     show_firing_rate: bool = True,
     show_proxy_shaders: bool | None = None,
     compact_kilosort_title: bool = False,
+    spike_cache: dict[tuple[str, int], np.ndarray] | None = None,
 ) -> go.Figure:
 
     left_has = spike_struct_L is not None and np.ravel(spike_struct_L).size > 0
@@ -473,6 +366,11 @@ def make_sangerlab_presentation_figure(
     region_orders: dict[str, list[str]] = {}
 
     for side in sides:
+        bursts_by_unit: dict[tuple[str, int], list[dict[str, Any]]] = {}
+        for burst in side["bursts"]:
+            key = (str(burst.get("Electrode", "")), int(burst.get("Cluster", -1)))
+            bursts_by_unit.setdefault(key, []).append(burst)
+
         row_all = 0
         tickvals: list[float] = []
         ticktext: list[str] = []
@@ -517,16 +415,15 @@ def make_sangerlab_presentation_figure(
                     region_seen.add(reg)
                     region_first_seen.append(reg)
 
-                spk = np.asarray(arr).ravel().astype(float)
+                key = (elec, int(cl))
+                if spike_cache is not None and key in spike_cache:
+                    spk = spike_cache[key]
+                else:
+                    spk = np.sort(np.asarray(arr).ravel().astype(float))
                 spk = spk[np.isfinite(spk)]
                 if spk.size < 2:
                     continue
-                spk = np.sort(spk)
-
-                bursts_for_unit = [
-                    b for b in side["bursts"]
-                    if b.get("Electrode") == elec and int(b.get("Cluster", -1)) == int(cl)
-                ]
+                bursts_for_unit = bursts_by_unit.get(key, [])
 
                 y_plot = row_all * RASTER_ROW_SPACING
                 row_all += 1
@@ -747,73 +644,6 @@ def make_sangerlab_presentation_figure(
     return fig
 
 
-def bars_from_onset_windows_using_all_bursts(
-    network_windows_ms,
-    all_bursts,
-    *,
-    time_unit: str = "ms",
-    channel_mode: str = "elec_cluster",
-    min_unique_channels: int = 1,
-    pad_ms: float = 0.0,
-    use_onset_plus_length: bool = False,
-) -> list[tuple[float, float]]:
-    if not network_windows_ms:
-        return []
-
-    if time_unit.lower() == "s":
-        windows_ms = [(float(a) * 1000.0, float(b) * 1000.0) for a, b in network_windows_ms]
-    else:
-        windows_ms = [(float(a), float(b)) for a, b in network_windows_ms]
-
-    def ch_id(b):
-        elec = str(b.get("Electrode", ""))
-        if channel_mode == "elec":
-            return elec
-        cl = int(b.get("Cluster", -1))
-        return f"{elec}|{cl}"
-
-    bars_s: list[tuple[float, float]] = []
-
-    for w0, w1 in windows_ms:
-        if not (np.isfinite(w0) and np.isfinite(w1)) or w1 <= w0:
-            continue
-
-        overlapping = []
-        chans = set()
-
-        for b in all_bursts:
-            s = float(b.get("Start_ms", np.nan))
-            e = float(b.get("End_ms", np.nan))
-            if not (np.isfinite(s) and np.isfinite(e)) or e <= s:
-                continue
-            if (s >= w0) and (s <= w1):
-                overlapping.append((s, e))
-                chans.add(ch_id(b))
-
-        if not overlapping:
-            continue
-        if len(chans) < int(min_unique_channels):
-            continue
-
-        if use_onset_plus_length:
-            lengths = [e - s for (s, e) in overlapping]
-            median_length_ms = float(np.median(lengths))
-            b0 = w0 / 1000.0
-            b1 = (w0 + median_length_ms + pad_ms) / 1000.0
-        else:
-            starts = [s for s, _ in overlapping]
-            ends = [e for _, e in overlapping]
-            b0 = float(np.median(starts)) - pad_ms
-            b1 = float(np.median(ends)) + pad_ms
-            b0, b1 = b0 / 1000.0, b1 / 1000.0
-        if b1 <= b0:
-            continue
-
-        bars_s.append((b0, b1))
-
-    return bars_s
-
-
 def add_burst_bars_top_SIMPLE(
     fig, windows_s, *,
     row: int, col: int = 1,
@@ -871,47 +701,6 @@ def plot_region_bars_from_precomputed(
         y_top -= float(y_step)
 
 
-def plot_region_bars_simple(
-    fig, *, row: int, col: int,
-    region_windows_by_region: dict,
-    all_bursts: list[dict],
-    region_colors: dict,
-    region_order: list[str],
-    y_top_start: float,
-    bar_height: float,
-    y_step: float,
-    min_unique_channels: int = 1,
-    channel_mode: str = "elec_cluster",
-    opacity: float = 0.9,
-    line_width: float = 1.0,
-):
-    y_top = float(y_top_start)
-
-    for reg in region_order:
-        wins = region_windows_by_region.get(reg, [])
-        if not wins:
-            continue
-
-        reg_bursts = [b for b in all_bursts if str(b.get("_Region", infer_region(str(b["Electrode"])))) == reg]
-
-        windows_s = bars_from_onset_windows_using_all_bursts(
-            wins, reg_bursts,
-            time_unit="ms",
-            min_unique_channels=min_unique_channels,
-            channel_mode=channel_mode,
-        )
-
-        add_burst_bars_top_SIMPLE(
-            fig, windows_s,
-            row=row, col=col,
-            y_top=y_top, bar_height=bar_height,
-            color=color_for_plot_group(str(reg)),
-            opacity=0.95, line_width=line_width,
-        )
-
-        y_top -= float(y_step)
-
-
 def add_emg_shaders_from_windows(
     fig: go.Figure,
     windows_ms: list[tuple[float, float]] | None,
@@ -950,24 +739,12 @@ def add_emg_shaders_from_windows(
         )
 
 
-def _merge_windows_s(wins):
-    wins = sorted(wins, key=lambda t: t[0])
-    merged = []
-    for t0, t1 in wins:
-        if not merged:
-            merged.append([t0, t1])
-        elif t0 <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], t1)
-        else:
-            merged.append([t0, t1])
-    return [(a, b) for a, b in merged]
-
-
 def population_firing_rate_binned(
     spike_struct, STATS: pd.DataFrame, record_len_s: float, *,
     bin_s: float, stride_s: float,
     allowed_clusters: set[tuple[str, int]] | None = None,
     normalize_by_units: bool = True,
+    spike_cache: dict[tuple[str, int], np.ndarray] | None = None,
 ) -> pd.DataFrame:
     bin_s = float(bin_s)
     stride_s = float(stride_s)
@@ -986,13 +763,17 @@ def population_firing_rate_binned(
             if allowed_clusters is not None and (elec, cl) not in allowed_clusters:
                 continue
 
-            spk = np.asarray(arr).ravel().astype(float)
+            key = (elec, cl)
+            if spike_cache is not None and key in spike_cache:
+                spk = spike_cache[key]
+            else:
+                spk = np.sort(np.asarray(arr).ravel().astype(float))
             spk = spk[np.isfinite(spk)]
             if spk.size == 0:
                 continue
 
             n_units += 1
-            all_spk_s.append(np.sort(spk) / 1000.0)
+            all_spk_s.append(spk / 1000.0)
 
     if n_units == 0:
         return pd.DataFrame(columns=["Window_start_s", "Window_end_s", "FR_Hz", "SpikeCount", "N_units"])
@@ -1041,7 +822,7 @@ def add_firing_rate_panel(
 
     if smooth_sec and smooth_sec > 0:
         smooth_bins = max(1, int(round(float(smooth_sec) / float(stride_s))))
-        y = _moving_average(y, smooth_bins)
+        y = moving_average(y, smooth_bins)
 
     line_kw = dict(width=1)
     if line_color is not None:
@@ -1057,67 +838,3 @@ def add_firing_rate_panel(
     ), row=row, col=col)
 
     fig.update_xaxes(range=[0, record_len_s], row=row, col=col)
-
-
-# =====================================================================
-# ISI plotting helpers (formerly maxisi_isi_plots.py)
-# =====================================================================
-
-def make_isi_hist_figure(isis_in_ms: np.ndarray, isis_out_ms: np.ndarray, title: str) -> go.Figure:
-    fig = go.Figure()
-    fig.add_trace(go.Histogram(x=isis_out_ms, name="Non-burst ISIs", opacity=0.6))
-    fig.add_trace(go.Histogram(x=isis_in_ms, name="Burst ISIs", opacity=0.6))
-    fig.update_layout(
-        title=title,
-        template="simple_white",
-        barmode="overlay",
-        xaxis_title="Interspike interval (ms)",
-        yaxis_title="Count",
-    )
-    if ISI_HIST_MAX_MS is not None:
-        fig.update_xaxes(range=[0, ISI_HIST_MAX_MS])
-    return fig
-
-
-def make_isi_bar_figure(isis_in_ms: np.ndarray, isis_out_ms: np.ndarray, title: str) -> go.Figure:
-    def _stats(a: np.ndarray) -> tuple[float, float, int]:
-        a = a[np.isfinite(a)]
-        if a.size == 0:
-            return float("nan"), float("nan"), 0
-        return float(np.mean(a)), float(np.std(a, ddof=0)), int(a.size)
-
-    m_in, sd_in, n_in = _stats(isis_in_ms)
-    m_out, sd_out, n_out = _stats(isis_out_ms)
-
-    x = ["Burst", "Non-burst"]
-    y = [m_in, m_out]
-
-    plus_in = sd_in if np.isfinite(sd_in) else 0.0
-    plus_out = sd_out if np.isfinite(sd_out) else 0.0
-    minus_in = min(plus_in, m_in) if np.isfinite(m_in) else 0.0
-    minus_out = min(plus_out, m_out) if np.isfinite(m_out) else 0.0
-
-    err = dict(
-        type="data",
-        symmetric=False,
-        array=[plus_in, plus_out],
-        arrayminus=[minus_in, minus_out],
-        visible=bool(ISI_BAR_SHOW_STD),
-    )
-
-    txt = [f"n={n_in}", f"n={n_out}"]
-    fig = go.Figure()
-    if ISI_BAR_SHOW_STD:
-        fig.add_trace(go.Bar(x=x, y=y, error_y=err, text=txt, textposition="outside", name="Mean ISI"))
-    else:
-        fig.add_trace(go.Bar(x=x, y=y, text=txt, textposition="outside", name="Mean ISI"))
-
-    fig.update_layout(
-        title=title,
-        template="simple_white",
-        xaxis_title="Class",
-        yaxis_title="Mean ISI (ms)",
-        bargap=0.4,
-    )
-    fig.update_yaxes(rangemode="tozero")
-    return fig

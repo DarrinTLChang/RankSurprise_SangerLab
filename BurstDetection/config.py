@@ -1,7 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
 import numpy as np
-from numpy.ma import nonzero
 
 # Central configuration for the burst detection pipeline.
 # Keep variable names stable: many modules use `from config import *`.
@@ -12,7 +11,7 @@ from numpy.ma import nonzero
 # Keep this list as the authoritative dataset registry for `main.py`.
 # You can run subsets via CLI (`--only-datasets`, `--only-dataset-contains`, `--only-dataset-kind`).
 SpikeTime_Mat_File = [
-    "patient_data/burst_pause_example/spikeTime_p1.mat",
+    # "patient_data/burst_pause_example/spikeTime_p1.mat",
 
 
     "patient_data/s432/spikeTime_p2.mat",
@@ -125,6 +124,21 @@ SpikeTime_Mat_File = [
     "patient_data/s530/spikeTime_p2.mat",
     "patient_data/s530/spikeTime_p3.mat",
 
+    "patient_data/burstpaper_test/spikeTime_p1.mat",
+    "patient_data/burstpaper_test/spikeTime_p2.mat",
+    "patient_data/burstpaper_test/spikeTime_p3.mat",
+    "patient_data/burstpaper_test/spikeTime_p4.mat",
+    "patient_data/burstpaper_test/spikeTime_p5.mat",
+    "patient_data/burstpaper_test/spikeTime_p6.mat",
+
+    "patient_data/burstpaper_test/burst_pause/spikeTime_p1.mat",
+    "patient_data/burstpaper_test/drift/spikeTime_p1.mat",
+    "patient_data/burstpaper_test/drift/spikeTime_p2.mat",
+    "patient_data/burstpaper_test/drift/spikeTime_p3.mat",
+
+
+    "patient_data/s533/awake_no_stim/spikeTime_p1.mat",
+    "patient_data/s533/sleep/spikeTime_p2.mat",
 
     # Examples / presets (keep commented; enable as needed):
     # "patient_data/s531/day1_baseline/spikeTime_p2.mat",
@@ -290,6 +304,7 @@ SpikeTime_Mat_File = [
     r"kilosort:H:\Mouse\M402_WT\M402_20240830S24_g0\M402_20240830S24_g0_imec1",
     r"kilosort:H:\Mouse\M402_WT\M402_20240830S13_g0\M402_20240830S13_g0_imec2",
     r"kilosort:H:\Mouse\M402_WT\M402_20240830S24_g0\M402_20240830S24_g0_imec2",
+
 ]
 
 # ============================================================
@@ -303,9 +318,6 @@ PROXY_TIME_COL = "time_s"
 PROXY_LEFT_COL = "hemisphere_L_median_proxy"
 PROXY_RIGHT_COL = "hemisphere_R_median_proxy"
 
-# Legacy proxy folder root. Kept for compatibility with historical local workflows.
-PROXY_ROOT = None
-
 # ============================================================
 # KILOSORT CONTROLS
 # ============================================================
@@ -315,7 +327,7 @@ PROXY_ROOT = None
 # max_duration_s: None = full recording; set e.g. 60.0 to use only spikes in the first 60 seconds
 KILOSORT_GOOD_ONLY = True
 KILOSORT_SKIP_PIPELINE_SNR_FILTER = True
-KILOSORT_MAX_DURATION_S = 300  # e.g. 60.0 for first 60 s only
+KILOSORT_MAX_DURATION_S = 600  # e.g. 60.0 for first 60 s only
 # For Kilosort synthetic names ``rat_*_shankN_*``: group/color by shank like regions (infer_region → shank0, …).
 KILOSORT_COLOR_BY_SHANK = True
 
@@ -341,29 +353,10 @@ OUTPUT_ROOT_RS_MOUSE = Path(r"H:\mouse_RS")
 OUTPUT_ROOT_MAXISI = Path(r"H:\SangerLabBursts_maxISI")
 OUTPUT_ROOT_ALPHA_MEANISI = Path(r"H:\SangerLabBursts_alphaMeanISI")
 
-# Backwards-compat alias used by some proxy scripts as a default. Interpreted as the
-# RankSurprise root under the new layout.
-BURST_ROOT = OUTPUT_ROOT_RS
-
-# Root for proxy-analysis outputs from the current workflow.
-# Change this to redirect all proxy analysis outputs (e.g. to D_Drive).
-PROXY_ANALYSIS_ROOT = Path(r"H:\SangerLabBursts\proxy_analysis")
-
-# Run tag for proxy-analysis runs. Must match a rankSurprise subdir under
-# BURST_ROOT/patient/PeriodN/.
-# Change here to switch burst parameter set without passing --run-tag each time.
-PROXY_ANALYSIS_RUN_TAG = (
-    "RS=(8,5,3)_(75,75,75)"
-    "_minSpk=3__minDur=0ms__minCh=1"
-    "_SNR=1.2-1000_FR=0.8Hz"
-    "_region__network"
-)
-
 # ============================================================
 # PIPELINE TOGGLES
 # ============================================================
 presentation_mode = False
-PLOT_RASTER = True
 PLOT_FR = False
 # Fixed y-axis max for FR panel (Hz). When set (e.g. 0.2), all periods use [0, FR_Y_MAX]
 # so scale is comparable; when None, each plot uses data range.
@@ -412,7 +405,7 @@ REGION_SPAN_ONSET_PLUS_LENGTH = True
 # ============================================================
 # Shared across burst detectors unless a method-specific override is used.
 MIN_SPIKES_IN_BURST = 3
-MIN_BURST_DURATION = 50  # ms
+MIN_BURST_DURATION = 20  # ms
 # Optional upper bound for burst duration (ms). When set (not None), bursts/windows
 # longer than this are dropped at the stage(s) where duration constraints apply.
 MAX_BURST_DURATION = 10000
@@ -426,8 +419,8 @@ ibi_merge_factor = 0
 APPLY_MIN_BURST_DURATION_ALL_STAGES = False
 
 # Unit quality filtering
-FR_MIN_HZ = 0.8
-SNR_MIN = 1.2
+FR_MIN_HZ = 0
+SNR_MIN = 0.8
 SNR_MAX = 25
 
 # ============================================================
@@ -474,13 +467,13 @@ RS_WIN_SHUFF_AUTO_BIN_MAX_MS: float = 1000.0
 # - nonoverlap: disjoint chunks [0,L), [L,2L), ...
 # - sliding: fixed chunk length L with stride L*(1-overlap_fraction)
 # - custom: explicit non-overlapping windows from RS_STAGE1_CUSTOM_WINDOWS_S (seconds)
-RS_STAGE1_LOCAL_SEGMENT_ENABLE: bool = False
-RS_STAGE1_SEGMENT_MODE: str = "nonoverlap"  # "nonoverlap" | "sliding" | "custom"
-# RS_STAGE1_SEGMENT_MODE: str = "sliding"  # "nonoverlap" | "sliding" | "custom"
+RS_STAGE1_LOCAL_SEGMENT_ENABLE: bool = True
+# RS_STAGE1_SEGMENT_MODE: str = "nonoverlap"  # "nonoverlap" | "sliding" | "custom"
+RS_STAGE1_SEGMENT_MODE: str = "sliding"  # "nonoverlap" | "sliding" | "custom"
 # RS_STAGE1_SEGMENT_MODE: str = "custom"  # "nonoverlap" | "sliding" | "custom"
 
-RS_STAGE1_SEGMENT_LEN_S: float = 45.0
-RS_STAGE1_SEGMENT_OVERLAP_FRACTION: float = 0.5
+RS_STAGE1_SEGMENT_LEN_S: float = 5.0
+RS_STAGE1_SEGMENT_OVERLAP_FRACTION: float = 0.4
 RS_STAGE1_SEGMENT_MIN_SPIKES: int = 3
 RS_STAGE1_POSTHOC_MERGE_ENABLE: bool = True
 RS_STAGE1_POSTHOC_MERGE_GAP_MS: float = 20.0
@@ -513,7 +506,7 @@ MIN_UNIQUE_CHANNELS_NETWORK = 1
 MIN_UNIQUE_REGIONS_NETWORK = 2
 
 # Parameter sweeps
-RS_ALPHA_SETS = [(0.05,    0.03,    0.02)] # (stage1, region, network)
+RS_ALPHA_SETS = [(0.08,    0.06,    0.03)] # (stage1, region, network)
 # Optional sweep for Stage-1 WIN-SHUFF parameters (window_ms, bin_ms).
 # These are iterated similarly to RS_ALPHA_SETS in main.py when
 # RS_WIN_SHUFF_AUTO_FROM_RECORDING is False (fixed-size mode).
@@ -531,10 +524,10 @@ MIN_MAXISI_MS = 5
 MAX_MAXISI_MS = 100
 
 # ============================================================
-# CO-ACTIVITY
+# FIRING RATE
 # ============================================================
-coactivity_bins_s = [0.4]
-OVERLAP_FRACTION = 0.2
+firing_rate_bins_s = [0.4]
+FIRING_RATE_OVERLAP_FRACTION = 0.2
 
 # ============================================================
 # PLOTTING - RASTER
@@ -543,8 +536,6 @@ RASTER_OPACITY_BASE = 0.5
 RASTER_OPACITY_BURST = 0.5
 RASTER_DOT_SIZE = 3
 RASTER_ROW_SPACING = 1
-RASTER_PX_PER_ROW = 2
-RASTER_MIN_HEIGHT = 700
 
 # For Kilosort combined rasters: y-axis depth tick spacing (µm). Used to add readable depth ticks.
 KILOSORT_DEPTH_TICK_UM = 500.0
@@ -553,30 +544,13 @@ KILOSORT_DEPTH_TICK_UM = 500.0
 # - False (default): units from all shanks are mingled and globally sorted by depth; y-axis shows depth ticks.
 # - True: units are grouped into shank blocks, each block sorted by depth (legacy look).
 KILOSORT_RASTER_GROUP_BY_SHANK = True
-SUBPLOT_VSPACING = 0.04
 COMMON_MARGINS = dict(t=70, r=240, l=110, b=60)
-LEGEND_MARKER_SIZE = 10
 
 # ============================================================
-# PLOTTING - CO-ACTIVITY(FR) PANELS
+# PLOTTING - FIRING-RATE PANELS
 # ============================================================
-SHOW_SUMMED_COACTIVITY_PANEL = True
-SHOW_REGION_COACTIVITY_PANEL = True
 COACTIVITY_DOT_SIZE = 2
-BURST_CHANNELS_COLOR = "rgb(139,69,19)"
-CONNECT_LINES = True
 SMOOTH_PANEL_SEC = 1
-REGIONAL_LINE_WIDTH = 1.6
-REGIONAL_OUTLINE_WIDTH = 0
-REGIONAL_OUTLINE_COLOR = "rgba(255,255,255,0.85)"
-REGIONAL_OPACITY = 0.85
-PANEL_FIXED_PX = 250
-
-# ============================================================
-# PLOTTING - ISI
-# ============================================================
-ISI_HIST_MAX_MS = 10000
-ISI_BAR_SHOW_STD = False
 
 # ============================================================
 # REGION COLORS & DISPLAY NAMES

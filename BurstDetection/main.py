@@ -12,16 +12,64 @@ from config import *
 import config as cfg
 import pipeline.detection as detection
 import pipeline.utils as utils
-from pipeline.emg import *
-from pipeline.detection import *
-from pipeline.utils import *
-from pipeline.stats import *
-from pipeline.coactivity import *
-from pipeline.plotting import *
-from pipeline.isi import *
+from pipeline.emg import (
+    build_emg_traces,
+    collapse_emg_traces,
+    derive_emg_from_spiketime,
+    load_emg_raw,
+    make_emg_timebase,
+    preprocess_emg_exact,
+)
+from pipeline.detection import rs_burst_detection
+from pipeline.utils import (
+    build_run_params,
+    build_sorted_spike_cache,
+    build_spike_labels_df,
+    burst_in_window,
+    compute_recording_duration_s,
+    dataset_labels_any,
+    get_thresholding_method_name,
+    infer_region,
+    iter_units_from_stats,
+    pool_spike_struct_per_channel,
+    run_tag_from_params,
+    run_tag_from_params_kilosort,
+    save_run_params,
+    split_spike_struct_by_side,
+)
+from pipeline.stats import build_cache
+from pipeline.plotting import (
+    make_sangerlab_presentation_figure,
+    population_firing_rate_binned,
+    save_fig_interactive,
+)
 from pipeline.kilosort_loader import parse_dataset_spec
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _sanitize_windows_token(value: str, replacement: str = "") -> str:
+    return re.sub(r"[<>:\"/\\|?*]", replacement, str(value))
+
+
+def _apply_rs_runtime_config(
+    *,
+    alphas: tuple[float, float, float] | None = None,
+    win_shuff: tuple[float, float] | None = None,
+) -> None:
+    for module in (cfg, detection, utils):
+        if alphas is not None:
+            stage1, region, network = (float(value) for value in alphas)
+            module.RS_alpha_percentage_stage1 = stage1
+            module.RS_alpha_stage1 = -np.log(stage1)
+            module.RS_alpha_percentage_region = region
+            module.RS_alpha_region = -np.log(region)
+            module.RS_alpha_percentage_network = network
+            module.RS_alpha_network = -np.log(network)
+        if win_shuff is not None:
+            window_ms, bin_ms = win_shuff
+            module.RS_WIN_SHUFF_WINDOW_MS = float(window_ms)
+            module.RS_WIN_SHUFF_BIN_MS = float(bin_ms)
 
 
 def _datasets_from_indices(spec: str | None, entries: list) -> list:
@@ -187,9 +235,8 @@ def _resolve_win_shuff_params_ms(record_len_s: float) -> tuple[float, float]:
 def run_single_dataset(
     mat_file: str,
     base_thr: float,
-    coactivity_bins_s: float,
+    firing_rate_bin_s: float,
     EMG_MAT: str,
-    NOTES_TXT: str,
 ):
     t0 = time.perf_counter()
     patient, period = dataset_labels_any(mat_file)
@@ -204,7 +251,6 @@ def run_single_dataset(
             max_duration_s=KILOSORT_MAX_DURATION_S,
 
         )
-        mat_file_for_cache = None
     elif kind == "kilosortset":
         from pipeline.kilosort_loader import load_kilosort_dirs
         ks_dirs = [p.strip() for p in raw_path.split(";") if p.strip()]
@@ -213,22 +259,18 @@ def run_single_dataset(
             good_only=KILOSORT_GOOD_ONLY,
             max_duration_s=KILOSORT_MAX_DURATION_S,
         )
-        mat_file_for_cache = None
     else:
         mat = spio.loadmat(raw_path, squeeze_me=True, struct_as_record=False)
         spike_struct = mat["spikeTime"]
-        mat_file_for_cache = raw_path
 
-    thr_method_name, thr_method_id = get_thresholding_method_name()
+    thr_method_name, _ = get_thresholding_method_name()
     record_len_s = compute_recording_duration_s(spike_struct)
     fs = float((np.ravel(spike_struct)[0]).dataSegmentLength)
 
     # Per-recording WIN-SHUFF parameter resolution (fixed vs auto-from-recording).
     if thr_method_name == "rankSurprise":
         ws_ms_eff, bin_ms_eff = _resolve_win_shuff_params_ms(record_len_s)
-        for mod in (cfg, detection, utils):
-            mod.RS_WIN_SHUFF_WINDOW_MS = float(ws_ms_eff)
-            mod.RS_WIN_SHUFF_BIN_MS = float(bin_ms_eff)
+        _apply_rs_runtime_config(win_shuff=(ws_ms_eff, bin_ms_eff))
         if bool(cfg.RS_WIN_SHUFF_STAGE1_ENABLE):
             if bool(getattr(cfg, "RS_WIN_SHUFF_AUTO_FROM_RECORDING", False)):
                 print(
@@ -251,7 +293,7 @@ def run_single_dataset(
     else:
         method_root = Path(OUTPUT_ROOT_RS)
     # Windows paths cannot contain characters like '?'.
-    period_dir = re.sub(r"[<>:\"/\\\\|?*]", "", period.replace(" ", ""))
+    period_dir = _sanitize_windows_token(period.replace(" ", ""))
     patient_dir = patient
 
     # Kilosort output layout override:
@@ -259,9 +301,6 @@ def run_single_dataset(
     # Flat:   .../<line>/<gate_folder>/<imec_folder>/      (mouse; KS files in imec_folder)
     #   <METHOD_ROOT>\<patient_dir>\<period_dir>\<run_tag>\...
     if kind in ("kilosort", "kilosortset"):
-        def _sanitize_path_token(s: str) -> str:
-            return re.sub(r"[<>:\"/\\\\|?*]", "", str(s))
-
         try:
             if kind == "kilosort":
                 p0 = Path(raw_path)
@@ -272,25 +311,25 @@ def run_single_dataset(
                 session = parts[-4]
                 shank = parts[-3]
                 imec = parts[-2]
-                patient_dir = _sanitize_path_token(session)
+                patient_dir = _sanitize_windows_token(session)
                 if kind == "kilosort":
-                    period_dir = f"{_sanitize_path_token(imec)}_{_sanitize_path_token(shank)}"
+                    period_dir = f"{_sanitize_windows_token(imec)}_{_sanitize_windows_token(shank)}"
                 else:
-                    period_dir = f"{_sanitize_path_token(imec)}_allshanks"
+                    period_dir = f"{_sanitize_windows_token(imec)}_allshanks"
             else:
                 # Flat KS root (no trailing kilosort4 directory)
                 if len(parts) >= 4:
-                    patient_dir = _sanitize_path_token(parts[-3])
+                    patient_dir = _sanitize_windows_token(parts[-3])
                 elif len(parts) >= 2:
-                    patient_dir = _sanitize_path_token(parts[-2])
+                    patient_dir = _sanitize_windows_token(parts[-2])
                 else:
                     patient_dir = "kilosort"
                 gate = parts[-2] if len(parts) >= 2 else "gate"
                 leaf = parts[-1] if len(parts) >= 1 else "imec"
                 if kind == "kilosort":
-                    period_dir = _sanitize_path_token(f"{gate}_{leaf}")
+                    period_dir = _sanitize_windows_token(f"{gate}_{leaf}")
                 else:
-                    period_dir = f"{_sanitize_path_token(leaf)}_allshanks"
+                    period_dir = f"{_sanitize_windows_token(leaf)}_allshanks"
         except Exception:
             patient_dir = "kilosort"
             if kind == "kilosort":
@@ -308,7 +347,7 @@ def run_single_dataset(
             # Match outputs folder name from dataset_labels_any (incl. _separated when grouped).
             return patient
         # Fallback: sanitize patient string
-        return re.sub(r"[<>:\"/\\\\|?*]", "_", patient or "dataset")
+        return _sanitize_windows_token(patient or "dataset", replacement="_")
 
     run_params = build_run_params(thr_method_name, base_thr)
     if kind in ("kilosort", "kilosortset"):
@@ -322,12 +361,11 @@ def run_single_dataset(
     else:
         run_tag = run_tag_from_params(run_params)
     max_dur_s = KILOSORT_MAX_DURATION_S
-    if max_dur_s is not None:
+    if kind in ("kilosort", "kilosortset") and max_dur_s is not None:
         run_tag = f"{run_tag}_[0-{max_dur_s}s]"
     run_dir = method_root / patient_dir / period_dir / run_tag
-    isi_dir = run_dir / "isi_summary"
     raster_dir = run_dir / "raster_plots"
-    for d in (run_dir, isi_dir, raster_dir):
+    for d in (run_dir, raster_dir):
         d.mkdir(parents=True, exist_ok=True)
     save_run_params(run_params, run_dir)
 
@@ -345,14 +383,14 @@ def run_single_dataset(
 
     # Build per-cluster stats
     STATS_indiv, STATS_POOLED = build_cache(
-        mat_file=mat_file_for_cache,
+        mat_file=None,
         cluster_stats_csv=run_dir / "cluster_stats.csv",
         pooled_cluster_stats_csv=run_dir / "pooled_cluster_stats.csv",
         base_thr=base_thr,
         record_len_s=record_len_s,
         adaptie_thr_toggle=alpha_meanisi_toggle,
         pooling_toggle=pooling_toggle,
-        spike_struct=spike_struct if kind in ("kilosort", "kilosortset") else None,
+        spike_struct=spike_struct,
         skip_snr_filter=(kind in ("kilosort", "kilosortset") and KILOSORT_SKIP_PIPELINE_SNR_FILTER),
     )
 
@@ -362,19 +400,26 @@ def run_single_dataset(
     else:
         STATS = STATS_indiv
     allowed_clusters = set(STATS.index)
+    spike_cache = build_sorted_spike_cache(spike_struct)
 
     spike_struct_L, spike_struct_R = split_spike_struct_by_side(spike_struct)
 
-    df_spikes = build_spike_labels_df(spike_struct, STATS, allowed_clusters, ibi_merge_factor)
+    df_spikes = build_spike_labels_df(
+        spike_struct, STATS, allowed_clusters, ibi_merge_factor,
+        spike_cache=spike_cache,
+    )
     df_spikes.to_csv(run_dir / "indiv_spike_labels.csv", index=False)
 
     # --------------------------------------------------
     # Burst detection
     # --------------------------------------------------
+    def _iter_units_cached(struct, stats):
+        return iter_units_from_stats(struct, stats, spike_cache=spike_cache)
+
     bd = rs_burst_detection(
         spike_struct, spike_struct_L, spike_struct_R,
         STATS, run_dir,
-        iter_units_fn=iter_units_from_stats,
+        iter_units_fn=_iter_units_cached,
         infer_region_fn=infer_region,
         burst_in_window_fn=burst_in_window,
     )
@@ -402,19 +447,13 @@ def run_single_dataset(
     t_emg = None
     emg_traces_L = None
     emg_traces_R = None
-    emg_traces_LR = None
-    event_times = None
-    event_names = None
 
     if PLOT_EMG and EMG_MAT is not None:
         IDX_R = [0, 1, 2, 3]
         IDX_L = [4, 5, 6, 7]
-        IDX_LR = IDX_R + IDX_L
 
         emg_fs, emg_data, emg_segment_length = load_emg_raw(EMG_MAT)
         emg_processed, selected_channel_names = preprocess_emg_exact(emg_data, fs_for_filter=fs)
-        if NOTES_TXT is not None:
-            event_times, event_names = parse_notes_events(NOTES_TXT)
         t_emg = make_emg_timebase(emg_segment_length, emg_processed.shape[1])
 
         mask = t_emg <= record_len_s
@@ -432,19 +471,11 @@ def run_single_dataset(
             selected_channel_names=selected_channel_names,
             mask=mask,
         )
-        emg_traces_LR = build_emg_traces(
-            IDX_LR, "LR",
-            emg_processed=emg_processed,
-            selected_channel_names=selected_channel_names,
-            mask=mask,
-        )
 
         if emg_traces_L is not None:
             emg_traces_L = collapse_emg_traces(emg_traces_L, mode="sum", label="EMG summed L")
         if emg_traces_R is not None:
             emg_traces_R = collapse_emg_traces(emg_traces_R, mode="sum", label="EMG summed R")
-        if emg_traces_LR is not None:
-            emg_traces_LR = collapse_emg_traces(emg_traces_LR, mode="sum", label="EMG summed")
 
     # --------------------------------------------------
     # Proxy (single CSV: time_s + left + right columns; see config PROXY_*)
@@ -546,32 +577,28 @@ def run_single_dataset(
         print("• Kilosort: skipping hemispheric proxy CSV (PLOT_PROXY_PANEL / COMPUTE_PROXY_VS_FR not used).")
 
     # --------------------------------------------------
-    # Co-activity & firing rate
+    # Firing rate
     # --------------------------------------------------
-    stride_s = max(coactivity_bins_s * (1.0 - OVERLAP_FRACTION), 1e-9)
-    if PLOT_RASTER:
-        co_channels = burst_coactivity_by_channel(all_bursts, record_len_s, win_s=coactivity_bins_s, stride_s=stride_s)
-        co_channels_L = burst_coactivity_by_channel(all_bursts_L, record_len_s, win_s=coactivity_bins_s, stride_s=stride_s)
-        co_channels_R = burst_coactivity_by_channel(all_bursts_R, record_len_s, win_s=coactivity_bins_s, stride_s=stride_s)
-
-        co_clusters = burst_coactivity_by_cluster(all_bursts, record_len_s, win_s=coactivity_bins_s, stride_s=stride_s)
-        
-        co_regions = burst_coactivity_by_region(all_bursts, record_len_s, win_s=coactivity_bins_s, stride_s=stride_s)
-        co_regions_L = burst_coactivity_by_region(all_bursts_L, record_len_s, win_s=coactivity_bins_s, stride_s=stride_s)
-        co_regions_R = burst_coactivity_by_region(all_bursts_R, record_len_s, win_s=coactivity_bins_s, stride_s=stride_s)
-
-    fr_df_L = population_firing_rate_binned(
-        spike_struct_L, STATS, record_len_s,
-        bin_s=coactivity_bins_s, stride_s=stride_s,
-        allowed_clusters=allowed_clusters,
-        normalize_by_units=True,
+    stride_s = max(
+        firing_rate_bin_s * (1.0 - FIRING_RATE_OVERLAP_FRACTION), 1e-9,
     )
-    fr_df_R = population_firing_rate_binned(
-        spike_struct_R, STATS, record_len_s,
-        bin_s=coactivity_bins_s, stride_s=stride_s,
-        allowed_clusters=allowed_clusters,
-        normalize_by_units=True,
-    )
+    fr_df_L = None
+    fr_df_R = None
+    if PLOT_FR or COMPUTE_PROXY_VS_FR:
+        fr_df_L = population_firing_rate_binned(
+            spike_struct_L, STATS, record_len_s,
+            bin_s=firing_rate_bin_s, stride_s=stride_s,
+            allowed_clusters=allowed_clusters,
+            normalize_by_units=True,
+            spike_cache=spike_cache,
+        )
+        fr_df_R = population_firing_rate_binned(
+            spike_struct_R, STATS, record_len_s,
+            bin_s=firing_rate_bin_s, stride_s=stride_s,
+            allowed_clusters=allowed_clusters,
+            normalize_by_units=True,
+            spike_cache=spike_cache,
+        )
 
     # --------------------------------------------------
     # Proxy vs firing-rate correlation study (hemi only; single bilateral CSV)
@@ -605,7 +632,7 @@ def run_single_dataset(
             fr_t = fr_df_side["Window_start_s"].to_numpy(float)
             fr_y = fr_df_side["FR_Hz"].to_numpy(float)
 
-            hemi_resampled = _resample_to_bins(t_s_px, hemi_px, fr_t, coactivity_bins_s)
+            hemi_resampled = _resample_to_bins(t_s_px, hemi_px, fr_t, firing_rate_bin_s)
             valid = np.isfinite(hemi_resampled) & np.isfinite(fr_y)
             hemi_corr = float(np.corrcoef(fr_y[valid], hemi_resampled[valid])[0, 1]) if valid.sum() > 2 else np.nan
 
@@ -696,7 +723,7 @@ def run_single_dataset(
                 record_len_s=record_len_s,
                 patient=patient,
                 period=period,
-                bin_s=coactivity_bins_s,
+                bin_s=firing_rate_bin_s,
                 stride_s=stride_s,
                 run_params=run_params,
                 presentation_mode=presentation_mode,
@@ -720,6 +747,7 @@ def run_single_dataset(
                 fr_df_R=fr_df_R,
                 show_firing_rate=PLOT_FR,
                 compact_kilosort_title=(kind in ("kilosort", "kilosortset")),
+                spike_cache=spike_cache,
             )
             save_fig_interactive(fig, raster_dir / name)
             if duplicate_for_gallery and DUPLICATE_SANGER_HTML and DUPLICATE_SANGER_HTML_DIR:
@@ -799,7 +827,7 @@ def run_single_dataset(
             record_len_s=record_len_s,
             patient=patient,
             period=period,
-            bin_s=coactivity_bins_s,
+            bin_s=firing_rate_bin_s,
             stride_s=stride_s,
             run_params=run_params,
             presentation_mode=presentation_mode,
@@ -823,24 +851,9 @@ def run_single_dataset(
             fr_df_R=fr_df_R,
             show_firing_rate=PLOT_FR,
             compact_kilosort_title=(kind in ("kilosort", "kilosortset")),
+            spike_cache=spike_cache,
         )
         save_fig_interactive(fig_corr, raster_dir / "correlation_graph")
-
-    # # --------------------------------------------------
-    # # Network burst ISI stats
-    # # --------------------------------------------------
-    # isi_df_L, isi_stats_L = compute_network_burst_isi_stats(
-    #     spike_struct_L, network_windows_L, STATS, allowed_clusters=allowed_clusters
-    # )
-    # isi_df_R, isi_stats_R = compute_network_burst_isi_stats(
-    #     spike_struct_R, network_windows_R, STATS, allowed_clusters=allowed_clusters
-    # )
-
-    # isi_df_L.to_csv(f"{patient}_{period}_ISI_windows_LEFT.csv", index=False)
-    # isi_df_R.to_csv(f"{patient}_{period}_ISI_windows_RIGHT.csv", index=False)
-
-    # pd.DataFrame([isi_stats_L]).to_csv(f"{patient}_{period}_ISI_summary_LEFT.csv", index=False)
-    # pd.DataFrame([isi_stats_R]).to_csv(f"{patient}_{period}_ISI_summary_RIGHT.csv", index=False)
 
     elapsed_s = time.perf_counter() - t0
     print(f"• Finished {patient} • {period} in {elapsed_s/60.0:.2f} min ({elapsed_s:.1f} s)")
@@ -935,15 +948,10 @@ if __name__ == "__main__":
                         flush=True,
                     )
 
-            for mod in (cfg, detection, utils):
-                mod.RS_alpha_percentage_stage1 = a_stage1
-                mod.RS_alpha_stage1 = -np.log(a_stage1)
-                mod.RS_alpha_percentage_region = a_region
-                mod.RS_alpha_region = -np.log(a_region)
-                mod.RS_alpha_percentage_network = a_network
-                mod.RS_alpha_network = -np.log(a_network)
-                mod.RS_WIN_SHUFF_WINDOW_MS = ws_ms
-                mod.RS_WIN_SHUFF_BIN_MS = bin_ms
+            _apply_rs_runtime_config(
+                alphas=(a_stage1, a_region, a_network),
+                win_shuff=(ws_ms, bin_ms),
+            )
 
             for mat_file_raw in dataset_entries:
                 mat_file = _resolve_dataset_entry(mat_file_raw)
@@ -953,9 +961,8 @@ if __name__ == "__main__":
                 print("Spike :", mat_file, flush=True)
 
                 EMG_MAT = None
-                NOTES_TXT = None
                 if PLOT_EMG and parse_dataset_spec(mat_file)[0] != "kilosort":
-                    emg_candidate, notes_candidate = derive_emg_notes_from_spiketime(
+                    emg_candidate = derive_emg_from_spiketime(
                         parse_dataset_spec(mat_file)[1]
                     )
                     if Path(emg_candidate).exists():
@@ -963,20 +970,14 @@ if __name__ == "__main__":
                         print("EMG   :", EMG_MAT)
                     else:
                         print("EMG   : not found, skipping")
-                    if Path(notes_candidate).exists():
-                        NOTES_TXT = notes_candidate
-                        print("Notes :", NOTES_TXT)
-                    else:
-                        print("Notes : not found, skipping")
 
                 for base_thr in maxISI_thresholds:
-                    for bin_s in coactivity_bins_s:
+                    for bin_s in firing_rate_bins_s:
                         run_single_dataset(
                             mat_file=mat_file,
                             base_thr=base_thr,
-                            coactivity_bins_s=bin_s,
+                            firing_rate_bin_s=bin_s,
                             EMG_MAT=EMG_MAT,
-                            NOTES_TXT=NOTES_TXT,
                         )
 
     elapsed_all_s = time.perf_counter() - t_all0

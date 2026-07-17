@@ -45,12 +45,3 @@ def burst_region_csv_path(run_dir: Path, side_tag: str) -> Path:
     if side_tag == "right":
         return d / "region_bursts_R.csv"
     raise ValueError(f"side_tag must be combined|left|right, got {side_tag!r}")
-
-
-def is_under_burst_timings(p: Path) -> bool:
-    return p.parent.name == BURST_TIMINGS_SUBDIR
-
-
-def network_burst_csv_basename(side: str) -> str:
-    """Filename only (for flat copies under permutation folders). side: left | right."""
-    return burst_network_csv_path(Path("."), side).name
