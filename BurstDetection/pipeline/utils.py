@@ -8,8 +8,45 @@ import numpy as np
 import pandas as pd
 from config import *
 from .detection import *
+from .intervals import WindowIndex, time_in_window_index
 from .stats import snr_fails_filter
-from collections import defaultdict
+
+
+def _format_number(value: float) -> str:
+    number = float(value)
+    if np.isfinite(number) and abs(number - round(number)) < 1e-9:
+        return str(int(round(number)))
+    return f"{number:g}"
+
+
+def _rs_tag_head(params: dict) -> str:
+    alphas = (
+        int(round(100 * float(params["RS_alpha_cluster"]))),
+        int(round(100 * float(params["RS_alpha_region"]))),
+        int(round(100 * float(params["RS_alpha_network"]))),
+    )
+    limits = (
+        int(params["RS_limit_cluster"]),
+        int(params["RS_limit_region"]),
+        int(params["RS_limit_network"]),
+    )
+    return f"({alphas[0]},{alphas[1]},{alphas[2]})_({limits[0]},{limits[1]},{limits[2]})"
+
+
+def _rs_minimums_tag(params: dict) -> str:
+    max_duration = (
+        f"__maxDur={params['MAX_BURST_DURATION']}ms"
+        if params.get("MAX_BURST_DURATION") is not None
+        else ""
+    )
+    return (
+        f"minSpk={params['MIN_SPIKES_IN_BURST']}"
+        f"__FR={_format_number(float(params['FR_MIN_HZ']))}hz"
+        f"__minDur={params['MIN_BURST_DURATION']}ms"
+        f"{max_duration}"
+        f"__minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}"
+        f"__minReg={params['MIN_UNIQUE_REGIONS_NETWORK']}"
+    )
 
 
 def display_region_name(region: str) -> str:
@@ -108,24 +145,12 @@ def infer_region(elec: str, combine_numbered_regions: bool | None = None) -> str
 
 
 def color_for_plot_group(name: str) -> str:
-    """Line / bar color for a coactivity column or burst group (brain region or shank id)."""
+    """Line or bar color for a brain-region or shank plot group."""
     if name in SHANK_COLORS:
         return SHANK_COLORS[name]
     if str(name).lower().startswith("shank") and str(name)[5:].isdigit():
         return "rgb(140, 140, 160)"
     return REGION_COLORS.get(name, "rgb(30,30,200)")
-
-
-def pretty_channel_label(elec: str, drop_side: bool) -> str:
-    p = parse_electrode(elec)
-    head, side, idx = p["head"], p["side"], p["idx"]
-
-    if idx:
-        if drop_side or not side:
-            return f"{head}_{idx}"
-        return f"{head}_{side}_{idx}"
-
-    return p["base"]
 
 
 def color_for_nonburst(elec: str) -> str:
@@ -140,7 +165,18 @@ def color_for_nonburst(elec: str) -> str:
     return "rgb(30,30,200)"
 
 
-def iter_units_from_stats(spike_struct, STATS):
+def build_sorted_spike_cache(spike_struct) -> dict[tuple[str, int], np.ndarray]:
+    """Convert and sort every unit once for reuse within a dataset run."""
+    cache: dict[tuple[str, int], np.ndarray] = {}
+    for ch in np.ravel(spike_struct):
+        elec = str(ch.electrode)
+        for cl, arr in enumerate(np.ravel(ch.time)):
+            spk = np.asarray(arr).ravel().astype(float)
+            cache[(elec, int(cl))] = np.sort(spk)
+    return cache
+
+
+def iter_units_from_stats(spike_struct, STATS, *, spike_cache=None):
     """Yields (elec, cl, spikes_ms_sorted) for each unit in STATS.index."""
     ch_by_elec = {str(ch.electrode): ch for ch in np.ravel(spike_struct)}
 
@@ -152,20 +188,23 @@ def iter_units_from_stats(spike_struct, STATS):
         if ch is None:
             continue
 
-        try:
-            arr = ch.time[cl]
-        except Exception:
-            arr = np.ravel(ch.time)[cl]
-
-        if np.isscalar(arr):
-            continue
-
-        spk = np.asarray(arr).ravel().astype(float)
-        spk = spk[np.isfinite(spk)]
+        key = (elec, cl)
+        if spike_cache is not None and key in spike_cache:
+            spk = spike_cache[key]
+            spk = spk[np.isfinite(spk)]
+        else:
+            try:
+                arr = ch.time[cl]
+            except Exception:
+                arr = np.ravel(ch.time)[cl]
+            if np.isscalar(arr):
+                continue
+            spk = np.asarray(arr).ravel().astype(float)
+            spk = np.sort(spk[np.isfinite(spk)])
         if spk.size < 2:
             continue
 
-        yield elec, cl, np.sort(spk)
+        yield elec, cl, spk
 
 
 def split_spike_struct_by_side(spike_struct):
@@ -182,7 +221,9 @@ def split_spike_struct_by_side(spike_struct):
     return np.array(left, dtype=object), np.array(right, dtype=object)
 
 
-def build_spike_labels_df(spike_struct, STATS, allowed_clusters, ibi_merge_factor):
+def build_spike_labels_df(
+    spike_struct, STATS, allowed_clusters, ibi_merge_factor, *, spike_cache=None,
+):
     rows = []
 
     for ch in np.ravel(spike_struct):
@@ -192,10 +233,14 @@ def build_spike_labels_df(spike_struct, STATS, allowed_clusters, ibi_merge_facto
             if (elec, cl) not in allowed_clusters:
                 continue
 
-            spk = np.asarray(arr).flatten().astype(float)
+            key = (elec, int(cl))
+            if spike_cache is not None and key in spike_cache:
+                spk = spike_cache[key]
+            else:
+                spk = np.asarray(arr).flatten().astype(float)
+                spk = np.sort(spk)
             if spk.size == 0:
                 continue
-            spk = np.sort(spk)
 
             bursts = detect_bursts(spk, elec, cl, STATS, ibi_merge_factor=ibi_merge_factor)
 
@@ -270,31 +315,6 @@ def pool_spike_struct_per_channel(spike_struct, record_len_s):
     return np.array(pooled_struct, dtype=object)
 
 
-def standardize_output_df(
-    df: pd.DataFrame, *,
-    pretty_col: str = "Channel",
-    drop_side: bool = False,
-    replace_electrode: bool = True,
-    put_pretty_first: bool = False,
-) -> pd.DataFrame:
-    if df is None or df.empty or "Electrode" not in df.columns:
-        return df
-
-    df = df.copy()
-    df[pretty_col] = df["Electrode"].apply(lambda e: pretty_channel_label(str(e), drop_side=drop_side))
-
-    if replace_electrode:
-        df["Electrode"] = df[pretty_col]
-        df.drop(columns=[pretty_col], inplace=True)
-        return df
-
-    if put_pretty_first:
-        cols = [pretty_col] + [c for c in df.columns if c != pretty_col]
-        df = df[cols]
-
-    return df
-
-
 def get_thresholding_method_name() -> tuple[str, int]:
     if maxisi_toggle:
         return "maxISI", 1
@@ -326,7 +346,6 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
         common.update({
             "base_thr": base_thr,
             "ibi_merge_factor": ibi_merge_factor,
-            "MIN_BURST_DURATION": MIN_BURST_DURATION,
         })
     elif method_name == "alpha_meanISI":
         common.update({
@@ -334,7 +353,6 @@ def build_run_params(method_name: str, base_thr: float) -> dict:
             "min_thr_ms": MIN_MAXISI_MS,
             "max_thr_ms": MAX_MAXISI_MS,
             "ibi_merge_factor": ibi_merge_factor,
-            "MIN_BURST_DURATION": MIN_BURST_DURATION,
         })
     elif method_name == "rankSurprise":
         common.update({
@@ -398,46 +416,21 @@ def run_tag_from_params(params: dict) -> str:
         if params["pooling"]:
             parts.append("pooled")
     elif m == "rankSurprise":
-        def _fmt_num(v: float) -> str:
-            fv = float(v)
-            if np.isfinite(fv) and abs(fv - round(fv)) < 1e-9:
-                return str(int(round(fv)))
-            return f"{fv:g}"
-
-        ac = float(params["RS_alpha_cluster"])
-        ar = float(params["RS_alpha_region"])
-        an = float(params["RS_alpha_network"])
-        a_pct = (int(round(100 * ac)), int(round(100 * ar)), int(round(100 * an)))
-        lims = (int(params["RS_limit_cluster"]), int(params["RS_limit_region"]), int(params["RS_limit_network"]))
-
-        head = f"({a_pct[0]},{a_pct[1]},{a_pct[2]})_({lims[0]},{lims[1]},{lims[2]})"
-        fr_txt = _fmt_num(float(params["FR_MIN_HZ"]))
-        max_dur_txt = (
-            f"__maxDur={params['MAX_BURST_DURATION']}ms"
-            if params.get("MAX_BURST_DURATION") is not None
-            else ""
-        )
-        mins = (
-            f"minSpk={params['MIN_SPIKES_IN_BURST']}"
-            f"__FR={fr_txt}hz"
-            f"__minDur={params['MIN_BURST_DURATION']}ms"
-            f"{max_dur_txt}"
-            f"__minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}"
-            f"__minReg={params['MIN_UNIQUE_REGIONS_NETWORK']}"
-        )
+        head = _rs_tag_head(params)
+        mins = _rs_minimums_tag(params)
         # Preferred style: ..._SNR=..._FR=..._region__network
         toggles = ""
         # (Requested) omit region/network toggles from the run tag.
         if params.get("RS_offset_null"):
             toggles += "__offNull" if toggles else "offNull"
         if params.get("RS_win_shuff_stage1"):
-            win_w = _fmt_num(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
-            win_b = _fmt_num(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
+            win_w = _format_number(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
+            win_b = _format_number(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
             toggles += f"__win({win_w},{win_b})" if toggles else f"win({win_w},{win_b})"
         if params.get("RS_stage1_local_segment_enable"):
             seg_mode = str(params.get("RS_stage1_segment_mode", "nonoverlap"))
-            seg_len = _fmt_num(float(params.get("RS_stage1_segment_len_s", RS_STAGE1_SEGMENT_LEN_S)))
-            ov = _fmt_num(float(params.get("RS_stage1_segment_overlap_fraction", RS_STAGE1_SEGMENT_OVERLAP_FRACTION)))
+            seg_len = _format_number(float(params.get("RS_stage1_segment_len_s", RS_STAGE1_SEGMENT_LEN_S)))
+            ov = _format_number(float(params.get("RS_stage1_segment_overlap_fraction", RS_STAGE1_SEGMENT_OVERLAP_FRACTION)))
             toggles += f"__seg({seg_mode},{seg_len}s,ov={ov})" if toggles else f"seg({seg_mode},{seg_len}s,ov={ov})"
         tag = f"{head}_{mins}_{common_suffix}{toggles}"
         parts += [tag]
@@ -461,19 +454,7 @@ def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bo
         # For now, only RS is used for KS runs; fall back to default naming.
         return run_tag_from_params(params)
 
-    def _fmt_num(v: float) -> str:
-        fv = float(v)
-        if np.isfinite(fv) and abs(fv - round(fv)) < 1e-9:
-            return str(int(round(fv)))
-        return f"{fv:g}"
-
-    ac = float(params["RS_alpha_cluster"])
-    ar = float(params["RS_alpha_region"])
-    an = float(params["RS_alpha_network"])
-    a_pct = (int(round(100 * ac)), int(round(100 * ar)), int(round(100 * an)))
-    lims = (int(params["RS_limit_cluster"]), int(params["RS_limit_region"]), int(params["RS_limit_network"]))
-    head = f"({a_pct[0]},{a_pct[1]},{a_pct[2]})_({lims[0]},{lims[1]},{lims[2]})"
-    fr_txt = _fmt_num(float(params["FR_MIN_HZ"]))
+    head = _rs_tag_head(params)
 
     flags = []
     if good_only:
@@ -482,29 +463,17 @@ def run_tag_from_params_kilosort(params: dict, *, good_only: bool, sep_shank: bo
         flags.append("SepShank")
     flags_str = ("_" + "_".join(flags)) if flags else ""
 
-    max_dur_txt = (
-        f"__maxDur={params['MAX_BURST_DURATION']}ms"
-        if params.get("MAX_BURST_DURATION") is not None
-        else ""
-    )
-    mins = (
-        f"minSpk={params['MIN_SPIKES_IN_BURST']}"
-        f"__FR={fr_txt}hz"
-        f"__minDur={params['MIN_BURST_DURATION']}ms"
-        f"{max_dur_txt}"
-        f"__minCh={params['MIN_UNIQUE_CHANNELS_NETWORK']}"
-        f"__minReg={params['MIN_UNIQUE_REGIONS_NETWORK']}"
-    )
+    mins = _rs_minimums_tag(params)
 
     toggles = ""
     if params.get("RS_win_shuff_stage1"):
-        win_w = _fmt_num(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
-        win_b = _fmt_num(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
+        win_w = _format_number(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
+        win_b = _format_number(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
         toggles += f"__win({win_w},{win_b})" if toggles else f"_win({win_w},{win_b})"
     if params.get("RS_stage1_local_segment_enable"):
         seg_mode = str(params.get("RS_stage1_segment_mode", "nonoverlap"))
-        seg_len = _fmt_num(float(params.get("RS_stage1_segment_len_s", RS_STAGE1_SEGMENT_LEN_S)))
-        ov = _fmt_num(float(params.get("RS_stage1_segment_overlap_fraction", RS_STAGE1_SEGMENT_OVERLAP_FRACTION)))
+        seg_len = _format_number(float(params.get("RS_stage1_segment_len_s", RS_STAGE1_SEGMENT_LEN_S)))
+        ov = _format_number(float(params.get("RS_stage1_segment_overlap_fraction", RS_STAGE1_SEGMENT_OVERLAP_FRACTION)))
         toggles += f"__seg({seg_mode},{seg_len}s,ov={ov})" if toggles else f"_seg({seg_mode},{seg_len}s,ov={ov})"
 
     return f"{head}{flags_str}_{mins}{toggles}"
@@ -548,20 +517,14 @@ def figure_title_from_params(
             )
     elif m == "rankSurprise":
         if compact_kilosort:
-            def _fmt_num(v: float) -> str:
-                fv = float(v)
-                if np.isfinite(fv) and abs(fv - round(fv)) < 1e-9:
-                    return str(int(round(fv)))
-                return f"{fv:g}"
-
             detail = (
                 f"\u03b1c={params['RS_alpha_cluster']:.0%}  "
                 f"\u03b1r={params['RS_alpha_region']:.0%}  "
                 f"\u03b1n={params['RS_alpha_network']:.0%}  "
             )
             if params.get("RS_win_shuff_stage1"):
-                win_w = _fmt_num(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
-                win_b = _fmt_num(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
+                win_w = _format_number(float(params.get("RS_win_shuff_window_ms", RS_WIN_SHUFF_WINDOW_MS)))
+                win_b = _format_number(float(params.get("RS_win_shuff_bin_ms", RS_WIN_SHUFF_BIN_MS)))
                 detail += f"WinShuff({win_w},{win_b})  "
         else:
             detail = (
@@ -591,12 +554,9 @@ def save_run_params(params: dict, run_dir: Path) -> None:
         json.dump(params, f, indent=2, default=str)
 
 
-def filter_bursts_by_spike_struct(all_bursts, spike_struct):
-    allowed_elecs = {str(ch.electrode) for ch in np.ravel(spike_struct)}
-    return [b for b in all_bursts if b["Electrode"] in allowed_elecs]
-
-
-def burst_in_window(t_ms: float, window: list) -> bool:
+def burst_in_window(t_ms: float, window) -> bool:
+    if isinstance(window, WindowIndex):
+        return time_in_window_index(t_ms, window)
     for t0, t1 in window:
         if t0 <= t_ms <= t1:
             return True

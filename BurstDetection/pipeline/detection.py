@@ -28,6 +28,7 @@ from scipy.stats import norm
 from config import *
 
 from .burst_paths import burst_network_csv_path, burst_region_csv_path, burst_unit_csv_path
+from .intervals import merge_windows, prepare_window_index, slice_sorted_inclusive
 
 
 # =====================================================================
@@ -185,7 +186,8 @@ def win_shuff_spike_times_ms(
     t = t[np.isfinite(t)]
     if t.size == 0:
         return t
-    t = np.sort(t)
+    if np.any(t[1:] < t[:-1]):
+        t = np.sort(t)
     W = float(window_ms)
     b = float(bin_ms)
     if W <= 0 or b <= 0:
@@ -247,7 +249,8 @@ def _stage1_chunk_windows_ms(spk_ms: np.ndarray) -> list[tuple[float, float]]:
     t = t[np.isfinite(t)]
     if t.size == 0:
         return []
-    t = np.sort(t)
+    if np.any(t[1:] < t[:-1]):
+        t = np.sort(t)
     lo = float(t[0])
     hi = float(t[-1])
     if hi <= lo:
@@ -366,7 +369,8 @@ def _detect_stage1_unit_bursts(spk: np.ndarray, elec: str, cl: int) -> list[dict
     t = t[np.isfinite(t)]
     if t.size < 2:
         return []
-    t = np.sort(t)
+    if np.any(t[1:] < t[:-1]):
+        t = np.sort(t)
 
     def _detect_one_chunk(chunk_spk: np.ndarray, seed_suffix: str) -> list[dict]:
         ref_isis = None
@@ -417,8 +421,7 @@ def _detect_stage1_unit_bursts(spk: np.ndarray, elec: str, cl: int) -> list[dict
     raw_rows: list[dict] = []
     min_spk = int(max(2, RS_STAGE1_SEGMENT_MIN_SPIKES))
     for i, (w0, w1) in enumerate(wins):
-        m = (t >= w0) & (t <= w1)
-        chunk = t[np.flatnonzero(m)]
+        chunk = slice_sorted_inclusive(t, w0, w1)
         if chunk.size < min_spk:
             continue
         raw_rows.extend(_detect_one_chunk(chunk, f"chunk{i}"))
@@ -611,6 +614,14 @@ def compute_spans_and_bars(
     """
     spans_ms: list[tuple[float, float]] = []
     bars_s: list[tuple[float, float]] = []
+    valid_bursts: list[tuple[float, float, dict]] = []
+    for burst in bursts:
+        start = float(burst.get("Start_ms", np.nan))
+        end = float(burst.get("End_ms", np.nan))
+        if np.isfinite(start) and np.isfinite(end) and end > start:
+            valid_bursts.append((start, end, burst))
+    valid_bursts.sort(key=lambda item: item[0])
+    onsets = np.asarray([item[0] for item in valid_bursts], dtype=float)
 
     for w0, w1 in windows_ms:
         if not (np.isfinite(w0) and np.isfinite(w1)) or w1 <= w0:
@@ -621,22 +632,19 @@ def compute_spans_and_bars(
         chans = set()
         regs = set()
 
-        for b in bursts:
-            s = float(b.get("Start_ms", np.nan))
-            e = float(b.get("End_ms", np.nan))
-            if not (np.isfinite(s) and np.isfinite(e)) or e <= s:
-                continue
-            if (s >= w0) and (s <= w1):  # onset within window
-                overlapping.append((s, e))
-                chans.add(_ch_id(b, channel_mode))
-                if region_fn is not None:
-                    try:
-                        reg = region_fn(b)
-                    except Exception:
-                        reg = b.get("Region", b.get("Electrode", ""))
-                else:
+        left = int(np.searchsorted(onsets, w0, side="left"))
+        right = int(np.searchsorted(onsets, w1, side="right"))
+        for s, e, b in valid_bursts[left:right]:
+            overlapping.append((s, e))
+            chans.add(_ch_id(b, channel_mode))
+            if region_fn is not None:
+                try:
+                    reg = region_fn(b)
+                except Exception:
                     reg = b.get("Region", b.get("Electrode", ""))
-                regs.add(str(reg))
+            else:
+                reg = b.get("Region", b.get("Electrode", ""))
+            regs.add(str(reg))
 
         if (
             not overlapping
@@ -665,25 +673,9 @@ def compute_spans_and_bars(
         bars_s.append((span_start / 1000.0, span_end / 1000.0))
     
     # Merge overlapping bars
-    bars_s = _merge_windows_s(bars_s)
+    bars_s = merge_windows(bars_s)
     
     return spans_ms, bars_s
-
-
-def _merge_windows_s(wins: list[tuple[float, float]]) -> list[tuple[float, float]]:
-    """Merge overlapping windows."""
-    if not wins:
-        return []
-    wins = sorted(wins, key=lambda t: t[0])
-    merged = []
-    for t0, t1 in wins:
-        if not merged:
-            merged.append([t0, t1])
-        elif t0 <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], t1)
-        else:
-            merged.append([t0, t1])
-    return [(a, b) for a, b in merged]
 
 
 # =====================================================================
@@ -898,27 +890,20 @@ def rs_burst_detection(
                                 region_bars_temp[side_tag] = {}
                             region_bars_temp[side_tag][reg] = bars_s
 
+            region_window_indexes = {
+                reg: prepare_window_index(wins)
+                for reg, wins in region_windows_by_region.items()
+            }
             all_bursts_region: list[dict] = []
             for b in unit_bursts:
                 reg = b.get("_Region", infer_region_fn(str(b["Electrode"])))
-                wins = region_windows_by_region.get(reg, [])
-                flag = burst_in_window_fn(float(b["Start_ms"]), wins)
+                index = region_window_indexes.get(reg)
+                flag = index is not None and burst_in_window_fn(float(b["Start_ms"]), index)
                 b["IsRegionBurst"] = bool(flag)
                 if flag:
                     all_bursts_region.append(b)
 
             _write_csv(pd.DataFrame(region_bursts), burst_region_csv_path(run_dir, side_tag))
-
-            region_windows_rows = []
-            for reg, wins in region_windows_by_region.items():
-                for (t0, t1) in wins:
-                    region_windows_rows.append({
-                        "Region": reg,
-                        "Start_ms": float(t0),
-                        "End_ms": float(t1),
-                        "Duration_ms": float(t1 - t0),
-                    })
-            # pd.DataFrame(region_windows_rows).to_csv(run_dir / f"region_windows_RS_{side_tag}.csv", index=False)
 
             all_bursts = all_bursts_region
 
@@ -1007,17 +992,11 @@ def rs_burst_detection(
                     # Store merged bars for this side
                     network_bars_temp[side_tag] = bars_s
 
+            network_window_index = prepare_window_index(network_windows)
             for b in all_bursts:
-                b["IsNetworkBurst"] = burst_in_window_fn(float(b["Start_ms"]), network_windows)
+                b["IsNetworkBurst"] = burst_in_window_fn(float(b["Start_ms"]), network_window_index)
 
             _write_csv(pd.DataFrame(network_bursts), burst_network_csv_path(run_dir, side_tag))
-
-            network_windows_rows = [{
-                "Start_ms": float(t0),
-                "End_ms": float(t1),
-                "Duration_ms": float(t1 - t0),
-            } for (t0, t1) in network_windows]
-            # pd.DataFrame(network_windows_rows).to_csv(run_dir / f"network_windows_RS_{side_tag}.csv", index=False)
 
             if plot_network_bursts:
                 all_bursts = [b for b in all_bursts if b.get("IsNetworkBurst")]

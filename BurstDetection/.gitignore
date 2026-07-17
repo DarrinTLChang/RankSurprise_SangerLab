@@ -9,15 +9,19 @@
 !pipeline/
 pipeline/*
 !pipeline/__init__.py
-!pipeline/coactivity.py
 !pipeline/detection.py
 !pipeline/emg.py
-!pipeline/isi.py
+!pipeline/intervals.py
 !pipeline/plotting.py
 !pipeline/stats.py
 !pipeline/utils.py
 !pipeline/burst_paths.py
 !pipeline/kilosort_loader.py
+!pipeline/numeric.py
+!tests/
+!tests/*.py
+!tests/baselines/
+!tests/baselines/*.json
 
 # General
 __pycache__/
